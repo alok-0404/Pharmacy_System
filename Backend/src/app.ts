@@ -44,6 +44,19 @@ export const createApp = (): Application => {
   app.use(`${env.API_PREFIX}/webhook`, webhookRouter);
   app.use(`${env.API_PREFIX}/whatsapp`, whatsappRoutes);
 
+  if (env.NODE_ENV === 'production') {
+    const frontendDist = path.join(__dirname, '..', '..', 'Frontend', 'dist');
+
+    app.use(express.static(frontendDist));
+
+    app.get('*', (req: Request, res: Response, next) => {
+      if (req.path.startsWith(env.API_PREFIX) || req.path.startsWith('/uploads')) {
+        return next();
+      }
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  }
+
   app.use(notFoundHandler);
   app.use(errorHandler);
 

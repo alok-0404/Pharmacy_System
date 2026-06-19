@@ -13,6 +13,7 @@ JWT_SECRET = "07310c90acb76c08de370573ebd5776a222b75750e79c3fbf3ea9e382f111a873b
 
 [userenv.production]
 NODE_ENV = "production"
+APP_PUBLIC_URL = "https://pharmacy-system.replit.app"
 
 [userenv.development]
 PORT = "3001"

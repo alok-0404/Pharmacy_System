@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, Send, UserRound } from 'lucide-react';
 import { createMessage, getMessages } from '../../api/messages';
 import { ApiClientError } from '../../api/client';
+import { usePharmacy } from '../../context/PharmacyContext';
 import type { Conversation, Message } from '../../types';
 import { formatTime, getPatientFromConversation } from '../../utils/format';
 import { MessageBubble } from './MessageBubble';
@@ -12,6 +13,7 @@ interface ChatViewProps {
 }
 
 export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
+  const { pharmacy } = usePharmacy();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
@@ -131,9 +133,12 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
       ) : null}
 
       <div className="border-t border-slate-200 bg-white px-4 py-3">
-        <p className="mb-2 text-xs text-amber-700">
-          WhatsApp delivery pending — messages save to database only until Meta token is connected.
-        </p>
+        {!pharmacy?.whatsappIntegration?.connected ? (
+          <p className="mb-2 text-xs text-amber-700">
+            WhatsApp delivery pending — messages save to database only until integration is
+            complete.
+          </p>
+        ) : null}
         <div className="flex gap-2">
           <button
             type="button"

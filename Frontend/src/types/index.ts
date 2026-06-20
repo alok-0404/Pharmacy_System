@@ -4,6 +4,12 @@ export interface ApiResponse<T> {
   data?: T;
 }
 
+export interface WhatsappIntegrationStatus {
+  connected: boolean;
+  serverTokenConfigured: boolean;
+  pharmacyNumberConfigured: boolean;
+}
+
 export interface Pharmacy {
   _id: string;
   name: string;
@@ -13,6 +19,7 @@ export interface Pharmacy {
   businessAccountId: string;
   greetingImageUrl?: string;
   isActive: boolean;
+  whatsappIntegration?: WhatsappIntegrationStatus;
   createdAt?: string;
   updatedAt?: string;
 }

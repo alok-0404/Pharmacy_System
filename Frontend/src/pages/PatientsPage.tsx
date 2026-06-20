@@ -9,7 +9,7 @@ import type { Patient } from '../types';
 
 export function PatientsPage() {
   const navigate = useNavigate();
-  const { pharmacyId } = usePharmacy();
+  const { pharmacyId, pharmacy } = usePharmacy();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -78,7 +78,9 @@ export function PatientsPage() {
       <div className="mx-auto max-w-4xl">
         <h1 className="text-2xl font-bold text-white">Patients</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Add patients and start conversations while WhatsApp is not connected.
+          {pharmacy?.whatsappIntegration?.connected
+            ? 'Add patients and start WhatsApp conversations from your dashboard.'
+            : 'Add patients and start conversations while WhatsApp is not connected.'}
         </p>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

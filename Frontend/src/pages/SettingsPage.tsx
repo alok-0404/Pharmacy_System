@@ -59,14 +59,26 @@ export function SettingsPage() {
             ) : null}
           </GlassCard>
 
-          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5">
-            <h2 className="font-semibold text-amber-200">WhatsApp integration</h2>
-            <p className="mt-2 text-sm text-amber-100/80">
-              Meta access token is not connected yet. The dashboard works with database-only
-              messaging. Once the token is added in backend .env, pharmacist replies can be wired
-              to WhatsApp delivery.
-            </p>
-          </div>
+          {pharmacy.whatsappIntegration?.connected ? (
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+              <h2 className="font-semibold text-emerald-200">WhatsApp integration</h2>
+              <p className="mt-2 text-sm text-emerald-100/80">
+                WhatsApp is connected. Incoming patient messages and pharmacist replies are
+                delivered through the Meta WhatsApp Business API.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5">
+              <h2 className="font-semibold text-amber-200">WhatsApp integration</h2>
+              <p className="mt-2 text-sm text-amber-100/80">
+                {!pharmacy.whatsappIntegration?.serverTokenConfigured
+                  ? 'Meta access token is not configured on the server yet. Add META_ACCESS_TOKEN and META_VERIFY_TOKEN in your backend environment (Replit Secrets / .env).'
+                  : !pharmacy.whatsappIntegration?.pharmacyNumberConfigured
+                    ? 'Your pharmacy WhatsApp Phone Number ID is still pending. Update it in pharmacy settings with the ID from Meta Business Manager.'
+                    : 'WhatsApp integration is not fully connected yet. The dashboard works with database-only messaging until setup is complete.'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

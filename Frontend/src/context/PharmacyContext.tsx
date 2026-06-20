@@ -13,6 +13,18 @@ import { ApiClientError } from '../api/client';
 
 const STORAGE_KEY = 'btbiz_pharmacy_id';
 
+function readStoredPharmacyId(): string | null {
+  return sessionStorage.getItem(STORAGE_KEY);
+}
+
+function writeStoredPharmacyId(id: string) {
+  sessionStorage.setItem(STORAGE_KEY, id);
+}
+
+function clearStoredPharmacyId() {
+  sessionStorage.removeItem(STORAGE_KEY);
+}
+
 interface PharmacyContextValue {
   pharmacyId: string | null;
   pharmacy: Pharmacy | null;
@@ -26,11 +38,9 @@ interface PharmacyContextValue {
 const PharmacyContext = createContext<PharmacyContextValue | null>(null);
 
 export function PharmacyProvider({ children }: { children: ReactNode }) {
-  const [pharmacyId, setPharmacyIdState] = useState<string | null>(
-    () => localStorage.getItem(STORAGE_KEY),
-  );
+  const [pharmacyId, setPharmacyIdState] = useState<string | null>(readStoredPharmacyId);
   const [pharmacy, setPharmacy] = useState<Pharmacy | null>(null);
-  const [loading, setLoading] = useState(Boolean(localStorage.getItem(STORAGE_KEY)));
+  const [loading, setLoading] = useState(Boolean(readStoredPharmacyId()));
   const [error, setError] = useState<string | null>(null);
 
   const loadPharmacy = useCallback(async (id: string) => {
@@ -41,17 +51,21 @@ export function PharmacyProvider({ children }: { children: ReactNode }) {
       const data = await getPharmacy(id);
       setPharmacy(data);
       setPharmacyIdState(id);
-      localStorage.setItem(STORAGE_KEY, id);
+      writeStoredPharmacyId(id);
     } catch (err) {
       const message =
         err instanceof ApiClientError ? err.message : 'Failed to load pharmacy';
       setError(message);
       setPharmacy(null);
       setPharmacyIdState(null);
-      localStorage.removeItem(STORAGE_KEY);
+      clearStoredPharmacyId();
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   useEffect(() => {
@@ -70,7 +84,7 @@ export function PharmacyProvider({ children }: { children: ReactNode }) {
   );
 
   const clearPharmacy = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    clearStoredPharmacyId();
     setPharmacyIdState(null);
     setPharmacy(null);
     setError(null);

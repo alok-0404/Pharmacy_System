@@ -4,6 +4,7 @@ interface MessageBubbleProps {
   content: string;
   senderType: SenderType;
   time?: string;
+  messageType?: 'text' | 'image' | 'document';
 }
 
 const senderLabels: Record<SenderType, string> = {
@@ -12,7 +13,7 @@ const senderLabels: Record<SenderType, string> = {
   bot: 'Bot',
 };
 
-export function MessageBubble({ content, senderType, time }: MessageBubbleProps) {
+export function MessageBubble({ content, senderType, time, messageType = 'text' }: MessageBubbleProps) {
   const isOutgoing = senderType === 'pharmacist' || senderType === 'bot';
 
   return (
@@ -29,7 +30,15 @@ export function MessageBubble({ content, senderType, time }: MessageBubbleProps)
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
           {senderLabels[senderType]}
         </p>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
+        {messageType === 'image' ? (
+          <img src={content} alt="Shared image" className="max-h-48 rounded-lg object-contain" />
+        ) : messageType === 'document' ? (
+          <a href={content} target="_blank" rel="noreferrer" className="text-sm underline">
+            View document
+          </a>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
+        )}
         {time ? (
           <p className={`mt-1 text-[10px] ${isOutgoing ? 'text-white/70' : 'text-slate-400'}`}>
             {time}

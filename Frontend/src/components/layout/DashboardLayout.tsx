@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageCircle,
+  Package,
   Settings,
   Users,
 } from 'lucide-react';
@@ -12,6 +13,7 @@ import { usePharmacy } from '../../context/PharmacyContext';
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/dashboard/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/dashboard/orders', label: 'Orders', icon: Package },
   { to: '/dashboard/patients', label: 'Patients', icon: Users },
   { to: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];

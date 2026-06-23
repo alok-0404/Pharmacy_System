@@ -51,3 +51,25 @@ export async function apiPost<T>(
 
   return parseResponse<T>(response);
 }
+
+export async function apiPatch<T>(
+  path: string,
+  data: unknown,
+  tenantId?: string,
+): Promise<T> {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  if (tenantId) {
+    headers[TENANT_HEADER] = tenantId;
+  }
+
+  const response = await fetch(path, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  return parseResponse<T>(response);
+}

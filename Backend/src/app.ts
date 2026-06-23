@@ -13,6 +13,7 @@ import conversationRoutes from './modules/conversation/conversation.routes';
 import messageRoutes from './modules/message/message.routes';
 import { authRoutes } from './modules/auth';
 import { whatsappRoutes, webhookRouter } from './modules/whatsapp';
+import orderRoutes from './modules/order/order.routes';
 
 export const createApp = (): Application => {
   const app = express();
@@ -41,6 +42,7 @@ export const createApp = (): Application => {
   app.use(`${env.API_PREFIX}/patients`, patientRoutes);
   app.use(`${env.API_PREFIX}/conversations`, conversationRoutes);
   app.use(`${env.API_PREFIX}/messages`, messageRoutes);
+  app.use(`${env.API_PREFIX}/orders`, orderRoutes);
   app.use(`${env.API_PREFIX}/webhook`, webhookRouter);
   app.use(`${env.API_PREFIX}/whatsapp`, whatsappRoutes);
 

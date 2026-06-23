@@ -1,0 +1,183 @@
+import { ApiError } from '../../utils/ApiError';
+import { HTTP_STATUS } from '../../config/constants';
+import {
+  ORDER_STATUS_TRANSITIONS,
+  OrderStatus,
+  PaymentStatus,
+  DeliveryType,
+} from '../../config/order.constants';
+import { IOrder, Order } from './order.model';
+import { Patient } from '../patient/patient.model';
+import { Pharmacy } from '../pharmacy/pharmacy.model';
+import { isValidObjectId } from '../../utils/objectId';
+import { handleMongooseError } from '../../utils/mongooseError';
+import {
+  getOrderStatusMessage,
+  OrderNotificationContext,
+} from '../notification/order-notification.service';
+import { whatsappService } from '../whatsapp/whatsapp.service';
+import { Message, MessageStatus, MessageType, SenderType } from '../message/message.model';
+import { Conversation } from '../conversation/conversation.model';
+import { logger } from '../../utils/logger';
+
+export interface UpdateOrderStatusInput {
+  status: OrderStatus;
+  rejectionReason?: string;
+  paymentAmount?: number;
+  deliveryType?: DeliveryType;
+  refillDueAt?: Date;
+  note?: string;
+}
+
+export class OrderStatusService {
+  assertTransitionAllowed(current: OrderStatus, next: OrderStatus): void {
+    const allowed = ORDER_STATUS_TRANSITIONS[current] ?? [];
+
+    if (!allowed.includes(next)) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        `Cannot transition from "${current}" to "${next}"`,
+      );
+    }
+  }
+
+  private buildNotificationContext(
+    order: IOrder,
+    pharmacyName: string,
+    input?: UpdateOrderStatusInput,
+  ): OrderNotificationContext {
+    return {
+      pharmacyName,
+      orderId: String(order._id),
+      rejectionReason: input?.rejectionReason ?? order.rejectionReason,
+      paymentAmount: input?.paymentAmount ?? order.paymentAmount,
+    };
+  }
+
+  async notifyPatient(
+    order: IOrder,
+    status: OrderStatus,
+    input?: UpdateOrderStatusInput,
+  ): Promise<void> {
+    const pharmacy = await Pharmacy.findById(order.pharmacyId);
+
+    if (!pharmacy) {
+      return;
+    }
+
+    const patient = await Patient.findById(order.patientId);
+
+    if (!patient) {
+      return;
+    }
+
+    const context = this.buildNotificationContext(order, pharmacy.name, input);
+    const messageText = getOrderStatusMessage(status, context);
+
+    try {
+      const sendResult = await whatsappService.sendMessageForPharmacy(
+        String(order.pharmacyId),
+        patient.mobile,
+        messageText,
+      );
+
+      if (order.conversationId) {
+        await Message.create({
+          pharmacyId: order.pharmacyId,
+          conversationId: order.conversationId,
+          patientId: order.patientId,
+          senderType: SenderType.BOT,
+          content: messageText,
+          messageType: MessageType.TEXT,
+          whatsappMessageId: sendResult.messages?.[0]?.id,
+          status: MessageStatus.SENT,
+        });
+
+        await Conversation.findByIdAndUpdate(order.conversationId, {
+          lastMessageAt: new Date(),
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to send order status WhatsApp notification', {
+        orderId: order._id,
+        status,
+        error,
+      });
+    }
+  }
+
+  async sendRefillReminder(order: IOrder): Promise<void> {
+    await this.notifyPatient(order, OrderStatus.REFILL_REMINDER);
+    order.refillReminderSentAt = new Date();
+    await order.save();
+  }
+
+  async applyStatusUpdate(
+    order: IOrder,
+    input: UpdateOrderStatusInput,
+  ): Promise<IOrder> {
+    this.assertTransitionAllowed(order.status, input.status);
+
+    const now = new Date();
+    order.status = input.status;
+    order.statusHistory.push({
+      status: input.status,
+      note: input.note,
+      changedAt: now,
+    });
+
+    if (input.rejectionReason) {
+      order.rejectionReason = input.rejectionReason;
+    }
+
+    if (input.paymentAmount !== undefined) {
+      order.paymentAmount = input.paymentAmount;
+    }
+
+    if (input.deliveryType) {
+      order.deliveryType = input.deliveryType;
+    }
+
+    if (input.refillDueAt) {
+      order.refillDueAt = input.refillDueAt;
+    }
+
+    if (input.status === OrderStatus.PAYMENT_PENDING) {
+      order.paymentStatus = PaymentStatus.PENDING;
+    }
+
+    if (input.status === OrderStatus.PAYMENT_CONFIRMED) {
+      order.paymentStatus = PaymentStatus.CONFIRMED;
+    }
+
+    try {
+      await order.save();
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+
+    await this.notifyPatient(order, input.status, input);
+
+    return order;
+  }
+
+  async transitionOrder(
+    pharmacyId: string,
+    orderId: string,
+    input: UpdateOrderStatusInput,
+  ): Promise<IOrder> {
+    if (!isValidObjectId(orderId)) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid order ID');
+    }
+
+    const order = await Order.findOne({ _id: orderId, pharmacyId });
+
+    if (!order) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Order not found');
+    }
+
+    return this.applyStatusUpdate(order, input);
+  }
+}
+
+export const orderStatusService = new OrderStatusService();

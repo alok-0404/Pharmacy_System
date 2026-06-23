@@ -118,6 +118,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
                 key={message._id}
                 content={message.content}
                 senderType={message.senderType}
+                messageType={message.messageType}
                 time={formatTime(message.createdAt)}
               />
             ))}

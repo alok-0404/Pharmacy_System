@@ -13,43 +13,78 @@ import {
 import { usePharmacy } from '../context/PharmacyContext';
 import { getConversations } from '../api/conversations';
 import { getPatients } from '../api/patients';
+import { getOrderActivity, getOrderStats, ORDER_STATUS_LABELS } from '../api/orders';
 import { GlassCard } from '../components/ui/glass-card';
 import { SectionReveal } from '../components/ui/section-reveal';
+import type { OrderActivity } from '../types';
 
-const statCards = [
-  { key: 'orders', label: 'Total Orders', icon: Package, value: '128', trend: '+12%' },
-  { key: 'patients', label: 'Active Patients', icon: Users, value: '0', trend: '+8%' },
-  { key: 'prescriptions', label: 'Pending Prescriptions', icon: Pill, value: '14', trend: '-3%' },
-  { key: 'deliveries', label: 'Deliveries', icon: Truck, value: '23', trend: '+5%' },
-  { key: 'revenue', label: 'Revenue', icon: IndianRupee, value: '₹2.4L', trend: '+18%' },
-];
+function formatRevenue(amount: number): string {
+  if (amount >= 100000) {
+    return `₹${(amount / 100000).toFixed(1)}L`;
+  }
 
-const activities = [
-  { text: 'New prescription uploaded by Rahul S.', time: '2 min ago' },
-  { text: 'Order #2847 marked out for delivery', time: '15 min ago' },
-  { text: 'AI bot responded to medicine query', time: '32 min ago' },
-  { text: 'Refill reminder sent to 8 patients', time: '1 hr ago' },
-];
+  if (amount >= 1000) {
+    return `₹${(amount / 1000).toFixed(1)}K`;
+  }
+
+  return `₹${amount}`;
+}
+
+function formatActivityText(item: OrderActivity): string {
+  const label = ORDER_STATUS_LABELS[item.status] ?? item.status;
+  return `${item.patientName ?? 'Patient'} — ${label}`;
+}
+
+function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+
+  return `${Math.floor(hours / 24)} day ago`;
+}
 
 export function DashboardHomePage() {
   const { pharmacy, pharmacyId } = usePharmacy();
   const [patientCount, setPatientCount] = useState(0);
   const [conversationCount, setConversationCount] = useState(0);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    pendingPrescriptions: 0,
+    activeDeliveries: 0,
+    revenue: 0,
+  });
+  const [activities, setActivities] = useState<OrderActivity[]>([]);
 
   useEffect(() => {
     if (!pharmacyId) return;
 
-    void Promise.all([getPatients(pharmacyId), getConversations(pharmacyId)]).then(
-      ([patients, conversations]) => {
-        setPatientCount(patients.length);
-        setConversationCount(conversations.length);
-      },
-    );
+    void Promise.all([
+      getPatients(pharmacyId),
+      getConversations(pharmacyId),
+      getOrderStats(pharmacyId),
+      getOrderActivity(pharmacyId),
+    ]).then(([patients, conversations, orderStats, activity]) => {
+      setPatientCount(patients.length);
+      setConversationCount(conversations.length);
+      setStats(orderStats);
+      setActivities(activity);
+    });
   }, [pharmacyId]);
 
-  const stats = statCards.map((s) =>
-    s.key === 'patients' ? { ...s, value: String(patientCount) } : s,
-  );
+  const statCards = [
+    { label: 'Total Orders', icon: Package, value: String(stats.totalOrders) },
+    { label: 'Active Patients', icon: Users, value: String(patientCount) },
+    { label: 'Pending Prescriptions', icon: Pill, value: String(stats.pendingPrescriptions) },
+    { label: 'Active Deliveries', icon: Truck, value: String(stats.activeDeliveries) },
+    { label: 'Revenue', icon: IndianRupee, value: formatRevenue(stats.revenue) },
+  ];
 
   return (
     <div className="h-full overflow-y-auto bg-zinc-950 p-6 lg:p-8">
@@ -63,14 +98,11 @@ export function DashboardHomePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {stats.map((stat, i) => (
+        {statCards.map((stat, i) => (
           <SectionReveal key={stat.label} delay={i * 0.05}>
             <GlassCard className="border-zinc-800 bg-zinc-900/50">
-              <div className="flex items-start justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400">
-                  <stat.icon size={20} />
-                </div>
-                <span className="text-xs font-medium text-emerald-400">{stat.trend}</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400">
+                <stat.icon size={20} />
               </div>
               <p className="mt-4 text-2xl font-bold text-white">{stat.value}</p>
               <p className="text-xs text-zinc-500">{stat.label}</p>
@@ -86,17 +118,23 @@ export function DashboardHomePage() {
               <h2 className="font-semibold text-white">Recent Activities</h2>
               <Activity size={18} className="text-zinc-500" />
             </div>
-            <ul className="space-y-4">
-              {activities.map((a) => (
-                <li
-                  key={a.text}
-                  className="flex items-start justify-between gap-4 border-b border-white/5 pb-3 last:border-0"
-                >
-                  <p className="text-sm text-zinc-300">{a.text}</p>
-                  <span className="shrink-0 text-xs text-zinc-600">{a.time}</span>
-                </li>
-              ))}
-            </ul>
+            {activities.length === 0 ? (
+              <p className="text-sm text-zinc-500">No order activity yet.</p>
+            ) : (
+              <ul className="space-y-4">
+                {activities.map((a) => (
+                  <li
+                    key={a.orderId}
+                    className="flex items-start justify-between gap-4 border-b border-white/5 pb-3 last:border-0"
+                  >
+                    <p className="text-sm text-zinc-300">{formatActivityText(a)}</p>
+                    <span className="shrink-0 text-xs text-zinc-600">
+                      {formatRelativeTime(a.updatedAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </GlassCard>
         </SectionReveal>
 

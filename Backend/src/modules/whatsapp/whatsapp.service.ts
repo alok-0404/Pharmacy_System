@@ -3,28 +3,39 @@ import { ApiError } from '../../utils/ApiError';
 import { HTTP_STATUS } from '../../config/constants';
 import { logger } from '../../utils/logger';
 import { handleMongooseError } from '../../utils/mongooseError';
+import { saveBufferToUploads } from '../../utils/mediaStorage';
 import { Pharmacy } from '../pharmacy/pharmacy.model';
 import { Patient } from '../patient/patient.model';
+import { Conversation } from '../conversation/conversation.model';
 import {
-  PharmacyConversation,
-  PharmacyConversationStatus,
-} from '../pharmacy-bot/pharmacy-conversation.model';
-import {
-  PharmacyMessage,
-  PharmacyMessageStatus,
-  PharmacyMessageType,
-  PharmacySenderType,
-} from '../pharmacy-bot/pharmacy-message.model';
-import { botService } from '../../bot/bot.service';
+  Message,
+  MessageStatus,
+  MessageType,
+  SenderType,
+} from '../message/message.model';
+import { conversationService } from '../conversation/conversation.service';
+import { orderService } from '../order/order.service';
+import { botFlowService } from '../../bot/bot-flow.service';
 import { Intent } from '../../bot/intent-detector';
+import { SERVICE_MENU_BODY, getServiceOptionLabel } from '../../bot/service-menu';
+import { sendInteractiveListMessage } from './whatsapp.interactive';
 import { resolvePublicUrl } from '../../utils/publicUrl';
+import { isServerWhatsappConfigured } from '../../utils/whatsappIntegration';
 import {
+  MetaMediaInfoResponse,
   MetaSendMessageResponse,
   MetaWebhookPayload,
   ParsedIncomingMessage,
   SendImageParams,
   SendMessageParams,
 } from './whatsapp.types';
+
+const MIME_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+};
 
 export class WhatsAppService {
   verifyWebhook(mode: string, token: string, challenge: string): string {
@@ -58,21 +69,66 @@ export class WhatsAppService {
         }
 
         for (const message of messages) {
-          if (message.type !== 'text' || !message.text?.body) {
-            logger.info('Skipping non-text WhatsApp message', {
-              type: message.type,
-              messageId: message.id,
+          const contact = contacts?.find((c) => c.wa_id === message.from);
+          const base = {
+            phoneNumberId,
+            senderMobile: message.from,
+            senderName: contact?.profile?.name,
+            messageId: message.id,
+          };
+
+          if (message.type === 'text' && message.text?.body) {
+            parsed.push({
+              ...base,
+              messageType: 'text',
+              messageText: message.text.body,
             });
             continue;
           }
 
-          const contact = contacts?.find((c) => c.wa_id === message.from);
+          if (message.type === 'interactive' && message.interactive) {
+            const buttonReply = message.interactive.button_reply;
+            const listReply = message.interactive.list_reply;
+            const selected = buttonReply ?? listReply;
 
-          parsed.push({
-            phoneNumberId,
-            senderMobile: message.from,
-            senderName: contact?.profile?.name,
-            messageText: message.text.body,
+            if (!selected) {
+              continue;
+            }
+
+            parsed.push({
+              ...base,
+              messageType: 'interactive',
+              messageText: selected.title,
+              buttonId: selected.id,
+            });
+            continue;
+          }
+
+          if (message.type === 'image' && message.image?.id) {
+            parsed.push({
+              ...base,
+              messageType: 'image',
+              messageText: message.image.caption ?? '[Prescription image]',
+              mediaId: message.image.id,
+              mimeType: message.image.mime_type,
+            });
+            continue;
+          }
+
+          if (message.type === 'document' && message.document?.id) {
+            parsed.push({
+              ...base,
+              messageType: 'document',
+              messageText: message.document.caption ?? message.document.filename ?? '[Document]',
+              mediaId: message.document.id,
+              mimeType: message.document.mime_type,
+              fileName: message.document.filename,
+            });
+            continue;
+          }
+
+          logger.info('Skipping unsupported WhatsApp message type', {
+            type: message.type,
             messageId: message.id,
           });
         }
@@ -80,6 +136,43 @@ export class WhatsAppService {
     }
 
     return parsed;
+  }
+
+  private extensionForMime(mimeType?: string): string {
+    if (!mimeType) {
+      return '.bin';
+    }
+
+    return MIME_EXTENSION[mimeType] ?? '.bin';
+  }
+
+  async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    const infoUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${mediaId}`;
+
+    const infoResponse = await fetch(infoUrl, {
+      headers: { Authorization: `Bearer ${env.META_ACCESS_TOKEN}` },
+    });
+
+    if (!infoResponse.ok) {
+      throw new ApiError(HTTP_STATUS.BAD_GATEWAY, 'Failed to fetch WhatsApp media info');
+    }
+
+    const info = (await infoResponse.json()) as MetaMediaInfoResponse;
+
+    const fileResponse = await fetch(info.url, {
+      headers: { Authorization: `Bearer ${env.META_ACCESS_TOKEN}` },
+    });
+
+    if (!fileResponse.ok) {
+      throw new ApiError(HTTP_STATUS.BAD_GATEWAY, 'Failed to download WhatsApp media');
+    }
+
+    const arrayBuffer = await fileResponse.arrayBuffer();
+
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mimeType: info.mime_type,
+    };
   }
 
   async processIncomingMessage(payload: MetaWebhookPayload): Promise<void> {
@@ -118,7 +211,7 @@ export class WhatsAppService {
 
     const pharmacyId = String(pharmacy._id);
 
-    const existingMessage = await PharmacyMessage.findOne({
+    const existingMessage = await Message.findOne({
       whatsappMessageId: incoming.messageId,
     }).setOptions({ withDeleted: true });
 
@@ -149,102 +242,249 @@ export class WhatsAppService {
       }
     }
 
-    let conversation = await PharmacyConversation.findOne({
+    const conversation = await conversationService.findOrCreateOpenConversation(
       pharmacyId,
-      patientId: patient._id,
-      status: PharmacyConversationStatus.OPEN,
-    });
+      String(patient._id),
+    );
 
-    if (!conversation) {
+    const now = new Date();
+    const isPrescriptionMedia =
+      incoming.messageType === 'image' || incoming.messageType === 'document';
+
+    let messageType = MessageType.TEXT;
+    let content = incoming.messageText;
+    let fileUrl: string | undefined;
+
+    if (isPrescriptionMedia && incoming.mediaId) {
       try {
-        conversation = await PharmacyConversation.create({
-          pharmacyId,
-          patientId: patient._id,
-          status: PharmacyConversationStatus.OPEN,
-        });
-        logger.info('New conversation created from WhatsApp', {
-          conversationId: conversation._id,
-          pharmacyId,
-        });
+        const media = await this.downloadMedia(incoming.mediaId);
+        fileUrl = await saveBufferToUploads(
+          `prescriptions/${pharmacyId}`,
+          media.buffer,
+          this.extensionForMime(media.mimeType ?? incoming.mimeType),
+        );
+        messageType =
+          incoming.messageType === 'image' ? MessageType.IMAGE : MessageType.DOCUMENT;
+        content = fileUrl;
       } catch (error) {
-        return handleMongooseError(error);
+        logger.error('Failed to download prescription media', {
+          mediaId: incoming.mediaId,
+          error,
+        });
+        messageType =
+          incoming.messageType === 'image' ? MessageType.IMAGE : MessageType.DOCUMENT;
+        content = incoming.messageText;
       }
     }
 
-    const now = new Date();
+    let savedMessage;
 
     try {
-      await PharmacyMessage.create({
+      savedMessage = await Message.create({
         pharmacyId,
         conversationId: conversation._id,
         patientId: patient._id,
-        senderType: PharmacySenderType.PATIENT,
-        content: incoming.messageText,
-        messageType: PharmacyMessageType.TEXT,
+        senderType: SenderType.PATIENT,
+        content,
+        messageType,
         whatsappMessageId: incoming.messageId,
-        status: PharmacyMessageStatus.DELIVERED,
+        status: MessageStatus.DELIVERED,
       });
     } catch (error) {
       return handleMongooseError(error);
     }
 
     await Promise.all([
-      PharmacyConversation.findByIdAndUpdate(conversation._id, { lastMessageAt: now }),
+      Conversation.findByIdAndUpdate(conversation._id, { lastMessageAt: now }),
       Patient.findByIdAndUpdate(patient._id, { lastInteractionAt: now }),
     ]);
 
-    logger.info('Incoming WhatsApp message saved', {
+    logger.info('Incoming WhatsApp message saved to inbox', {
       pharmacyId,
       conversationId: conversation._id,
       messageId: incoming.messageId,
+      messageType: incoming.messageType,
     });
 
-    const botResponse = botService.processMessage(incoming.messageText, {
-      name: pharmacy.name,
-      greetingImageUrl: pharmacy.greetingImageUrl,
+    if (isPrescriptionMedia && fileUrl) {
+      await orderService.createFromPrescription({
+        pharmacyId,
+        patientId: String(patient._id),
+        conversationId: String(conversation._id),
+        messageId: String(savedMessage._id),
+        fileUrl,
+        metaMediaId: incoming.mediaId,
+        mimeType: incoming.mimeType,
+        fileName: incoming.fileName,
+      });
+      return;
+    }
+
+    const botResponse = await botFlowService.process({
+      message: incoming.messageText,
+      buttonId: incoming.buttonId,
+      pharmacyId,
+      patientId: String(patient._id),
+      context: {
+        name: pharmacy.name,
+        greetingImageUrl: pharmacy.greetingImageUrl,
+      },
     });
+
+    await this.sendBotReply({
+      pharmacyId,
+      phoneNumberId: incoming.phoneNumberId,
+      senderMobile: incoming.senderMobile,
+      conversationId: String(conversation._id),
+      patientId: String(patient._id),
+      botResponse,
+    });
+  }
+
+  private async sendBotReply(params: {
+    pharmacyId: string;
+    phoneNumberId: string;
+    senderMobile: string;
+    conversationId: string;
+    patientId: string;
+    botResponse: {
+      intent: Intent;
+      reply: string;
+      imageUrl?: string;
+      sendServiceMenu: boolean;
+    };
+  }): Promise<void> {
+    const { pharmacyId, phoneNumberId, senderMobile, conversationId, patientId, botResponse } =
+      params;
+
+    if (!isServerWhatsappConfigured()) {
+      return;
+    }
 
     const sendResult =
       botResponse.intent === Intent.GREETING && botResponse.imageUrl
         ? await this.sendImageMessage({
-            phoneNumberId: incoming.phoneNumberId,
-            to: incoming.senderMobile,
+            phoneNumberId,
+            to: senderMobile,
             imageUrl: resolvePublicUrl(botResponse.imageUrl),
             caption: botResponse.reply,
           })
         : await this.sendMessage({
-            phoneNumberId: incoming.phoneNumberId,
-            to: incoming.senderMobile,
+            phoneNumberId,
+            to: senderMobile,
             message: botResponse.reply,
           });
 
     try {
-      await PharmacyMessage.create({
+      await Message.create({
         pharmacyId,
-        conversationId: conversation._id,
-        patientId: patient._id,
-        senderType: PharmacySenderType.BOT,
+        conversationId,
+        patientId,
+        senderType: SenderType.BOT,
         content: botResponse.reply,
         messageType:
           botResponse.intent === Intent.GREETING && botResponse.imageUrl
-            ? PharmacyMessageType.IMAGE
-            : PharmacyMessageType.TEXT,
+            ? MessageType.IMAGE
+            : MessageType.TEXT,
         whatsappMessageId: sendResult.messages?.[0]?.id,
-        status: PharmacyMessageStatus.SENT,
+        status: MessageStatus.SENT,
       });
 
-      await PharmacyConversation.findByIdAndUpdate(conversation._id, {
+      await Conversation.findByIdAndUpdate(conversationId, {
         lastMessageAt: new Date(),
       });
     } catch (error) {
       return handleMongooseError(error);
     }
 
+    if (botResponse.sendServiceMenu) {
+      await this.sendServiceMenu({
+        pharmacyId,
+        phoneNumberId,
+        senderMobile,
+        conversationId,
+        patientId,
+      });
+    }
+
     logger.info('Bot reply sent via WhatsApp', {
       pharmacyId,
-      to: incoming.senderMobile,
+      to: senderMobile,
+      intent: botResponse.intent,
       whatsappMessageId: sendResult.messages?.[0]?.id,
     });
+  }
+
+  private async sendServiceMenu(params: {
+    pharmacyId: string;
+    phoneNumberId: string;
+    senderMobile: string;
+    conversationId: string;
+    patientId: string;
+  }): Promise<void> {
+    const { pharmacyId, phoneNumberId, senderMobile, conversationId, patientId } = params;
+
+    if (!isServerWhatsappConfigured()) {
+      return;
+    }
+
+    const menuSummary = `Service menu: ${getServiceOptionLabel('upload_prescription')}, ${getServiceOptionLabel('order_status')}, ${getServiceOptionLabel('refill_medicine')}, ${getServiceOptionLabel('talk_pharmacist')}`;
+
+    try {
+      const sendResult = await sendInteractiveListMessage(
+        { phoneNumberId, to: senderMobile, bodyText: SERVICE_MENU_BODY },
+        (id, body) => this.sendRawMessage(id, body),
+      );
+
+      await Message.create({
+        pharmacyId,
+        conversationId,
+        patientId,
+        senderType: SenderType.BOT,
+        content: menuSummary,
+        messageType: MessageType.TEXT,
+        whatsappMessageId: sendResult.messages?.[0]?.id,
+        status: MessageStatus.SENT,
+      });
+
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastMessageAt: new Date(),
+      });
+
+      logger.info('Service menu sent via WhatsApp', {
+        pharmacyId,
+        to: senderMobile,
+      });
+    } catch (error) {
+      logger.error('Failed to send service menu', { pharmacyId, error });
+    }
+  }
+
+  private async sendRawMessage(
+    phoneNumberId: string,
+    body: unknown,
+  ): Promise<MetaSendMessageResponse> {
+    const url = `https://graph.facebook.com/${env.META_API_VERSION}/${phoneNumberId}/messages`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.META_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      logger.error('WhatsApp API raw send failed', {
+        status: response.status,
+        body: errorBody,
+      });
+      throw new ApiError(HTTP_STATUS.BAD_GATEWAY, 'Failed to send WhatsApp message');
+    }
+
+    return (await response.json()) as MetaSendMessageResponse;
   }
 
   async sendMessage(params: SendMessageParams): Promise<MetaSendMessageResponse> {
@@ -292,12 +532,6 @@ export class WhatsAppService {
   async sendImageMessage(params: SendImageParams): Promise<MetaSendMessageResponse> {
     const url = `https://graph.facebook.com/${env.META_API_VERSION}/${params.phoneNumberId}/messages`;
 
-    logger.info('Sending WhatsApp image message', {
-      phoneNumberId: params.phoneNumberId,
-      to: params.to,
-      imageUrl: params.imageUrl,
-    });
-
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -325,14 +559,7 @@ export class WhatsAppService {
       throw new ApiError(HTTP_STATUS.BAD_GATEWAY, 'Failed to send WhatsApp image message');
     }
 
-    const result = (await response.json()) as MetaSendMessageResponse;
-
-    logger.info('WhatsApp image message sent successfully', {
-      to: params.to,
-      whatsappMessageId: result.messages?.[0]?.id,
-    });
-
-    return result;
+    return (await response.json()) as MetaSendMessageResponse;
   }
 
   async sendMessageForPharmacy(
@@ -348,6 +575,10 @@ export class WhatsAppService {
 
     if (!pharmacy.isActive) {
       throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Pharmacy is not active');
+    }
+
+    if (!isServerWhatsappConfigured()) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'WhatsApp is not configured on the server');
     }
 
     return this.sendMessage({

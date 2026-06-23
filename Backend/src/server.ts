@@ -2,9 +2,12 @@ import { createApp } from './app';
 import { connectDatabase } from './database/connection';
 import { env } from './config/env';
 import { logger } from './utils/logger';
+import { startRefillReminderJob } from './jobs/refill-reminder.job';
 
 const startServer = async (): Promise<void> => {
   await connectDatabase();
+
+  startRefillReminderJob();
 
   const app = createApp();
 

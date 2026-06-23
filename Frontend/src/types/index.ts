@@ -90,3 +90,72 @@ export interface CreateMessageInput {
   content: string;
   messageType?: MessageType;
 }
+
+export type OrderStatus =
+  | 'prescription_received'
+  | 'order_verified'
+  | 'prescription_rejected'
+  | 'order_accepted'
+  | 'payment_pending'
+  | 'payment_confirmed'
+  | 'order_processing'
+  | 'order_ready_pickup'
+  | 'order_ready_delivery'
+  | 'out_for_delivery'
+  | 'order_completed'
+  | 'order_cancelled'
+  | 'refill_reminder';
+
+export interface OrderStatusHistory {
+  status: OrderStatus;
+  note?: string;
+  changedAt: string;
+}
+
+export interface Prescription {
+  _id: string;
+  fileUrl: string;
+  mimeType?: string;
+  fileName?: string;
+}
+
+export interface Order {
+  _id: string;
+  pharmacyId: string;
+  patientId: PopulatedPatient | string;
+  conversationId?: string;
+  prescriptionId?: Prescription | string;
+  status: OrderStatus;
+  rejectionReason?: string;
+  paymentAmount?: number;
+  paymentStatus?: string;
+  deliveryType?: 'pickup' | 'delivery';
+  refillDueAt?: string;
+  statusHistory: OrderStatusHistory[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OrderStats {
+  totalOrders: number;
+  pendingPrescriptions: number;
+  activeDeliveries: number;
+  completedOrders: number;
+  revenue: number;
+}
+
+export interface OrderActivity {
+  orderId: string;
+  status: OrderStatus;
+  patientName?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateOrderStatusInput {
+  status: OrderStatus;
+  rejectionReason?: string;
+  paymentAmount?: number;
+  deliveryType?: 'pickup' | 'delivery';
+  refillDueAt?: string;
+  note?: string;
+}

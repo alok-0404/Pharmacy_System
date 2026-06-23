@@ -57,6 +57,35 @@ export class ConversationService {
       .populate('patientId', 'name mobile email')
       .sort({ lastMessageAt: -1, createdAt: -1 });
   }
+
+  async findOrCreateOpenConversation(
+    pharmacyId: string,
+    patientId: string,
+  ): Promise<IConversation> {
+    if (!isValidObjectId(pharmacyId) || !isValidObjectId(patientId)) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid pharmacy or patient ID');
+    }
+
+    const existing = await Conversation.findOne({
+      pharmacyId,
+      patientId,
+      status: ConversationStatus.OPEN,
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      return await Conversation.create({
+        pharmacyId,
+        patientId,
+        status: ConversationStatus.OPEN,
+      });
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+  }
 }
 
 export const conversationService = new ConversationService();

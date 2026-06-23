@@ -1,4 +1,6 @@
 import { Intent } from './intent-detector';
+import { getOrderStatusLabel } from '../modules/notification/order-notification.service';
+import { OrderStatus } from '../config/order.constants';
 
 export interface PharmacyContext {
   name: string;
@@ -8,28 +10,68 @@ export interface PharmacyContext {
 export interface BotReply {
   text: string;
   imageUrl?: string;
+  sendServiceMenu?: boolean;
 }
 
 export interface ReplyGenerator {
-  generate(intent: Intent, context: PharmacyContext): BotReply;
+  generate(intent: Intent, context: PharmacyContext, orderStatus?: OrderStatus): BotReply;
 }
 
 class TemplateReplyGenerator implements ReplyGenerator {
-  generate(intent: Intent, context: PharmacyContext): BotReply {
-    if (intent === Intent.GREETING) {
-      return {
-        text: `Welcome to ${context.name}. How can we help you today?`,
-        imageUrl: context.greetingImageUrl,
-      };
-    }
+  generate(intent: Intent, context: PharmacyContext, orderStatus?: OrderStatus): BotReply {
+    switch (intent) {
+      case Intent.GREETING:
+        return {
+          text: `Welcome to ${context.name}! 👋\nHow can we help you today?`,
+          imageUrl: context.greetingImageUrl,
+          sendServiceMenu: true,
+        };
 
-    return {
-      text: `Your message has been received. A pharmacist at ${context.name} will respond shortly.`,
-    };
+      case Intent.SERVICE_MENU:
+        return {
+          text: `Here are the services available at ${context.name}:`,
+          sendServiceMenu: true,
+        };
+
+      case Intent.UPLOAD_PRESCRIPTION:
+        return {
+          text: `Please send your prescription as a *photo* or *PDF* document.\n\nOur team at ${context.name} will review it and confirm your order shortly.`,
+        };
+
+      case Intent.ORDER_STATUS:
+        if (orderStatus) {
+          return {
+            text: `Your latest order status: *${getOrderStatusLabel(orderStatus)}*.\n\nWe will notify you on WhatsApp when it changes. — ${context.name}`,
+          };
+        }
+
+        return {
+          text: `We could not find an active order linked to your number.\n\nPlease upload a prescription to start a new order, or reply *MENU* to see other services.`,
+          sendServiceMenu: true,
+        };
+
+      case Intent.REFILL_MEDICINE:
+        return {
+          text: `To refill your medicines at ${context.name}, please send your prescription photo/PDF or the medicine names you need.`,
+        };
+
+      case Intent.TALK_PHARMACIST:
+        return {
+          text: `A pharmacist at ${context.name} has been notified and will respond to you shortly.\n\nPlease share your question here.`,
+        };
+
+      default:
+        return {
+          text: `Your message has been received. A pharmacist at ${context.name} will respond shortly.\n\nReply *MENU* to see available services.`,
+        };
+    }
   }
 }
 
 const defaultGenerator = new TemplateReplyGenerator();
 
-export const generateReply = (intent: Intent, context: PharmacyContext): BotReply =>
-  defaultGenerator.generate(intent, context);
+export const generateReply = (
+  intent: Intent,
+  context: PharmacyContext,
+  orderStatus?: OrderStatus,
+): BotReply => defaultGenerator.generate(intent, context, orderStatus);

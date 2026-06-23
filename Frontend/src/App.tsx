@@ -4,6 +4,7 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardHomePage } from './pages/DashboardHomePage';
 import { InboxPage } from './pages/InboxPage';
+import { OrdersPage } from './pages/OrdersPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Loader2 } from 'lucide-react';
@@ -32,6 +33,7 @@ function ProtectedDashboard() {
       <Route element={<DashboardLayout />}>
         <Route index element={<DashboardHomePage />} />
         <Route path="inbox" element={<InboxPage />} />
+        <Route path="orders" element={<OrdersPage />} />
         <Route path="patients" element={<PatientsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

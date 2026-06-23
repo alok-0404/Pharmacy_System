@@ -5,6 +5,8 @@ export enum Intent {
   UPLOAD_PRESCRIPTION = 'UPLOAD_PRESCRIPTION',
   ORDER_STATUS = 'ORDER_STATUS',
   REFILL_MEDICINE = 'REFILL_MEDICINE',
+  STORE_INFO = 'STORE_INFO',
+  FAQ_SUPPORT = 'FAQ_SUPPORT',
   TALK_PHARMACIST = 'TALK_PHARMACIST',
   SERVICE_MENU = 'SERVICE_MENU',
   GENERAL_MESSAGE = 'GENERAL_MESSAGE',
@@ -22,14 +24,19 @@ export interface IntentDetector {
 const GREETING_PATTERN = /\b(hi|hello|hey|namaste|hola)\b/i;
 const MENU_PATTERN = /\b(menu|services|options|help)\b/i;
 const UPLOAD_PATTERN = /\b(upload|prescription|recipe)\b/i;
-const ORDER_STATUS_PATTERN = /\b(order\s*status|track\s*order|my\s*order|status)\b/i;
-const REFILL_PATTERN = /\b(refill|reorder|medicine\s*again)\b/i;
+const ORDER_STATUS_PATTERN = /\b(order\s*status|track\s*order|my\s*order)\b/i;
+const REFILL_PATTERN = /\b(refill|reorder|medicine\s*again|repeat\s*order)\b/i;
+const STORE_PATTERN =
+  /\b(location|address|timing|timings|hours|open|close|where|map|store|directions)\b/i;
+const FAQ_PATTERN = /\b(faq|faqs|question|help\s*me|support)\b/i;
 const PHARMACIST_PATTERN = /\b(pharmacist|talk|speak|human|agent)\b/i;
 
 const BUTTON_INTENT_MAP: Record<string, Intent> = {
   [SERVICE_OPTION_IDS.UPLOAD_PRESCRIPTION]: Intent.UPLOAD_PRESCRIPTION,
   [SERVICE_OPTION_IDS.ORDER_STATUS]: Intent.ORDER_STATUS,
   [SERVICE_OPTION_IDS.REFILL_MEDICINE]: Intent.REFILL_MEDICINE,
+  [SERVICE_OPTION_IDS.STORE_INFO]: Intent.STORE_INFO,
+  [SERVICE_OPTION_IDS.FAQ_SUPPORT]: Intent.FAQ_SUPPORT,
   [SERVICE_OPTION_IDS.TALK_PHARMACIST]: Intent.TALK_PHARMACIST,
 };
 
@@ -63,6 +70,14 @@ class RuleBasedIntentDetector implements IntentDetector {
 
     if (REFILL_PATTERN.test(normalized)) {
       return { intent: Intent.REFILL_MEDICINE, confidence: 0.9 };
+    }
+
+    if (STORE_PATTERN.test(normalized)) {
+      return { intent: Intent.STORE_INFO, confidence: 0.9 };
+    }
+
+    if (FAQ_PATTERN.test(normalized)) {
+      return { intent: Intent.FAQ_SUPPORT, confidence: 0.85 };
     }
 
     if (PHARMACIST_PATTERN.test(normalized)) {

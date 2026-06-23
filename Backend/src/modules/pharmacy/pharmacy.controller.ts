@@ -41,3 +41,20 @@ export const updatePaymentSettings = asyncHandler(async (req: Request, res: Resp
     }),
   );
 });
+
+export const updateStoreSettings = asyncHandler(async (req: Request, res: Response) => {
+  const pharmacyId = String(req.params.id);
+
+  if (!req.tenantId || req.tenantId !== pharmacyId) {
+    throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You can only update your own pharmacy settings');
+  }
+
+  const pharmacy = await pharmacyService.updateStoreSettings(pharmacyId, req.body);
+
+  res.status(HTTP_STATUS.OK).json(
+    ApiResponse.success('Store settings updated successfully', {
+      ...pharmacy.toJSON(),
+      whatsappIntegration: getWhatsappIntegrationStatus(pharmacy),
+    }),
+  );
+});

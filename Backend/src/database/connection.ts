@@ -8,6 +8,7 @@ import { Conversation } from '../modules/conversation/conversation.model';
 import { Message } from '../modules/message/message.model';
 import { Order } from '../modules/order/order.model';
 import { Prescription } from '../modules/prescription/prescription.model';
+import { Faq } from '../modules/faq/faq.model';
 import { PharmacyConversation } from '../modules/pharmacy-bot/pharmacy-conversation.model';
 import { PharmacyMessage } from '../modules/pharmacy-bot/pharmacy-message.model';
 
@@ -20,6 +21,7 @@ const syncModelIndexes = async (): Promise<void> => {
     Message,
     Order,
     Prescription,
+    Faq,
     PharmacyConversation,
     PharmacyMessage,
   ];

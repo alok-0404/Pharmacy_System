@@ -73,3 +73,14 @@ export async function apiPatch<T>(
 
   return parseResponse<T>(response);
 }
+
+export async function apiDelete(path: string, tenantId?: string): Promise<void> {
+  const headers: HeadersInit = {};
+
+  if (tenantId) {
+    headers[TENANT_HEADER] = tenantId;
+  }
+
+  const response = await fetch(path, { method: 'DELETE', headers });
+  await parseResponse<undefined>(response);
+}

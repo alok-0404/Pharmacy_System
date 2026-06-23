@@ -19,6 +19,12 @@ export interface UpdatePaymentSettingsInput {
   paymentQrImageUrl?: string;
 }
 
+export interface UpdateStoreSettingsInput {
+  storeAddress?: string;
+  storeHours?: string;
+  storeMapUrl?: string;
+}
+
 export class PharmacyService {
   async createPharmacy(data: CreatePharmacyInput): Promise<IPharmacy> {
     try {
@@ -55,6 +61,32 @@ export class PharmacyService {
 
     if (data.paymentQrImageUrl !== undefined) {
       pharmacy.paymentQrImageUrl = data.paymentQrImageUrl.trim() || undefined;
+    }
+
+    try {
+      await pharmacy.save();
+      return pharmacy;
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+  }
+
+  async updateStoreSettings(
+    pharmacyId: string,
+    data: UpdateStoreSettingsInput,
+  ): Promise<IPharmacy> {
+    const pharmacy = await this.getPharmacyById(pharmacyId);
+
+    if (data.storeAddress !== undefined) {
+      pharmacy.storeAddress = data.storeAddress.trim() || undefined;
+    }
+
+    if (data.storeHours !== undefined) {
+      pharmacy.storeHours = data.storeHours.trim() || undefined;
+    }
+
+    if (data.storeMapUrl !== undefined) {
+      pharmacy.storeMapUrl = data.storeMapUrl.trim() || undefined;
     }
 
     try {

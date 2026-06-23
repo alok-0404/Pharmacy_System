@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { createPharmacy, getPharmacy, updatePaymentSettings } from './pharmacy.controller';
+import { createPharmacy, getPharmacy, updatePaymentSettings, updateStoreSettings } from './pharmacy.controller';
 import { validate } from '../../middlewares/validate.middleware';
 import {
   createPharmacySchema,
   pharmacyIdParamsSchema,
   updatePaymentSettingsSchema,
+  updateStoreSettingsSchema,
 } from './pharmacy.validation';
 import { tenantMiddleware } from '../../middlewares/tenant.middleware';
 
@@ -18,6 +19,14 @@ router.patch(
   validate(pharmacyIdParamsSchema, 'params'),
   validate(updatePaymentSettingsSchema),
   updatePaymentSettings,
+);
+
+router.patch(
+  '/:id/store-settings',
+  tenantMiddleware,
+  validate(pharmacyIdParamsSchema, 'params'),
+  validate(updateStoreSettingsSchema),
+  updateStoreSettings,
 );
 
 export default router;

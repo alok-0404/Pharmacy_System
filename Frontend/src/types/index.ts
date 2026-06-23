@@ -20,6 +20,9 @@ export interface Pharmacy {
   greetingImageUrl?: string;
   paymentLinkUrl?: string;
   paymentQrImageUrl?: string;
+  storeAddress?: string;
+  storeHours?: string;
+  storeMapUrl?: string;
   isActive: boolean;
   whatsappIntegration?: WhatsappIntegrationStatus;
   createdAt?: string;
@@ -170,6 +173,30 @@ export interface UpdateOrderStatusInput {
 export interface PaymentSettingsInput {
   paymentLinkUrl?: string;
   paymentQrImageUrl?: string;
+}
+
+export interface StoreSettingsInput {
+  storeAddress?: string;
+  storeHours?: string;
+  storeMapUrl?: string;
+}
+
+export interface Faq {
+  _id: string;
+  pharmacyId: string;
+  question: string;
+  answer: string;
+  keywords: string[];
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface CreateFaqInput {
+  question: string;
+  answer: string;
+  keywords?: string[];
+  sortOrder?: number;
+  isActive?: boolean;
 }
 
 export interface SendPaymentDetailsInput {

@@ -23,3 +23,9 @@ export const updatePaymentSettingsSchema = z.object({
     .or(z.literal(''))
     .optional(),
 });
+
+export const updateStoreSettingsSchema = z.object({
+  storeAddress: z.string().trim().optional(),
+  storeHours: z.string().trim().optional(),
+  storeMapUrl: z.string().url('Invalid map URL').or(z.literal('')).optional(),
+});

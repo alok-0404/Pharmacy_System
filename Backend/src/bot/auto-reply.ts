@@ -5,6 +5,9 @@ import { OrderStatus } from '../config/order.constants';
 export interface PharmacyContext {
   name: string;
   greetingImageUrl?: string;
+  storeAddress?: string;
+  storeHours?: string;
+  storeMapUrl?: string;
 }
 
 export interface BotReply {
@@ -14,11 +17,47 @@ export interface BotReply {
 }
 
 export interface ReplyGenerator {
-  generate(intent: Intent, context: PharmacyContext, orderStatus?: OrderStatus): BotReply;
+  generate(
+    intent: Intent,
+    context: PharmacyContext,
+    orderStatus?: OrderStatus,
+    faqText?: string,
+  ): BotReply;
+}
+
+function formatStoreInfo(context: PharmacyContext): string {
+  const lines = [`*${context.name}* store information:`];
+
+  if (context.storeAddress) {
+    lines.push(`\n📍 Address:\n${context.storeAddress}`);
+  }
+
+  if (context.storeHours) {
+    lines.push(`\n🕐 Hours:\n${context.storeHours}`);
+  }
+
+  if (context.storeMapUrl) {
+    lines.push(`\n🗺️ Map:\n${context.storeMapUrl}`);
+  }
+
+  if (lines.length === 1) {
+    return `Store details for ${context.name} are not configured yet. Please contact our team for address and timings.`;
+  }
+
+  return lines.join('');
 }
 
 class TemplateReplyGenerator implements ReplyGenerator {
-  generate(intent: Intent, context: PharmacyContext, orderStatus?: OrderStatus): BotReply {
+  generate(
+    intent: Intent,
+    context: PharmacyContext,
+    orderStatus?: OrderStatus,
+    faqText?: string,
+  ): BotReply {
+    if (faqText) {
+      return { text: faqText };
+    }
+
     switch (intent) {
       case Intent.GREETING:
         return {
@@ -55,6 +94,14 @@ class TemplateReplyGenerator implements ReplyGenerator {
           text: `To refill your medicines at ${context.name}, please send your prescription photo/PDF or the medicine names you need.`,
         };
 
+      case Intent.STORE_INFO:
+        return { text: formatStoreInfo(context) };
+
+      case Intent.FAQ_SUPPORT:
+        return {
+          text: 'Loading FAQs...',
+        };
+
       case Intent.TALK_PHARMACIST:
         return {
           text: `A pharmacist at ${context.name} has been notified and will respond to you shortly.\n\nPlease share your question here.`,
@@ -74,4 +121,5 @@ export const generateReply = (
   intent: Intent,
   context: PharmacyContext,
   orderStatus?: OrderStatus,
-): BotReply => defaultGenerator.generate(intent, context, orderStatus);
+  faqText?: string,
+): BotReply => defaultGenerator.generate(intent, context, orderStatus, faqText);

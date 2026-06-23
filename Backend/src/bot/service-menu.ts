@@ -3,6 +3,8 @@ export const SERVICE_OPTION_IDS = {
   UPLOAD_PRESCRIPTION: 'upload_prescription',
   ORDER_STATUS: 'order_status',
   REFILL_MEDICINE: 'refill_medicine',
+  STORE_INFO: 'store_info',
+  FAQ_SUPPORT: 'faq_support',
   TALK_PHARMACIST: 'talk_pharmacist',
 } as const;
 
@@ -28,6 +30,16 @@ export const SERVICE_MENU_ROWS = [
     id: SERVICE_OPTION_IDS.REFILL_MEDICINE,
     title: 'Refill Medicine',
     description: 'Reorder your medicines',
+  },
+  {
+    id: SERVICE_OPTION_IDS.STORE_INFO,
+    title: 'Store Location',
+    description: 'Address, hours & map',
+  },
+  {
+    id: SERVICE_OPTION_IDS.FAQ_SUPPORT,
+    title: 'FAQ Support',
+    description: 'Common questions',
   },
   {
     id: SERVICE_OPTION_IDS.TALK_PHARMACIST,

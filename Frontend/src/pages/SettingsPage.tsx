@@ -1,26 +1,55 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { updatePaymentSettings } from '../api/pharmacy';
+import { updatePaymentSettings, updateStoreSettings } from '../api/pharmacy';
+import { createFaq, deleteFaq, getFaqs } from '../api/faq';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import { GlassCard } from '../components/ui/glass-card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import type { Faq } from '../types';
 
 export function SettingsPage() {
   const { pharmacy, pharmacyId, refreshPharmacy } = usePharmacy();
-  const [paymentLinkUrl, setPaymentLinkUrl] = useState(pharmacy?.paymentLinkUrl ?? '');
-  const [paymentQrImageUrl, setPaymentQrImageUrl] = useState(pharmacy?.paymentQrImageUrl ?? '');
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState('');
+  const [paymentQrImageUrl, setPaymentQrImageUrl] = useState('');
+  const [storeAddress, setStoreAddress] = useState('');
+  const [storeHours, setStoreHours] = useState('');
+  const [storeMapUrl, setStoreMapUrl] = useState('');
+  const [faqs, setFaqs] = useState<Faq[]>([]);
+  const [faqForm, setFaqForm] = useState({ question: '', answer: '', keywords: '' });
   const [saving, setSaving] = useState(false);
+  const [loadingFaqs, setLoadingFaqs] = useState(false);
 
   useEffect(() => {
     if (pharmacy) {
       setPaymentLinkUrl(pharmacy.paymentLinkUrl ?? '');
       setPaymentQrImageUrl(pharmacy.paymentQrImageUrl ?? '');
+      setStoreAddress(pharmacy.storeAddress ?? '');
+      setStoreHours(pharmacy.storeHours ?? '');
+      setStoreMapUrl(pharmacy.storeMapUrl ?? '');
     }
   }, [pharmacy]);
+
+  const loadFaqs = async () => {
+    if (!pharmacyId) return;
+
+    setLoadingFaqs(true);
+
+    try {
+      setFaqs(await getFaqs(pharmacyId));
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Failed to load FAQs');
+    } finally {
+      setLoadingFaqs(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadFaqs();
+  }, [pharmacyId]);
 
   if (!pharmacy || !pharmacyId) {
     return (
@@ -48,13 +77,67 @@ export function SettingsPage() {
     }
   };
 
+  const handleSaveStoreSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      await updateStoreSettings(pharmacyId, {
+        storeAddress: storeAddress.trim(),
+        storeHours: storeHours.trim(),
+        storeMapUrl: storeMapUrl.trim(),
+      });
+      await refreshPharmacy();
+      toast.success('Store settings saved');
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Failed to save store settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddFaq = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
+
+    setSaving(true);
+
+    try {
+      await createFaq(pharmacyId, {
+        question: faqForm.question.trim(),
+        answer: faqForm.answer.trim(),
+        keywords: faqForm.keywords
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean),
+      });
+      setFaqForm({ question: '', answer: '', keywords: '' });
+      await loadFaqs();
+      toast.success('FAQ added');
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Failed to add FAQ');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteFaq = async (faqId: string) => {
+    try {
+      await deleteFaq(pharmacyId, faqId);
+      await loadFaqs();
+      toast.success('FAQ deleted');
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Failed to delete FAQ');
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto bg-zinc-950 p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">Settings</h1>
-            <p className="mt-1 text-sm text-zinc-500">Pharmacy profile and integration status.</p>
+            <p className="mt-1 text-sm text-zinc-500">Pharmacy profile, bot replies, and integrations.</p>
           </div>
           <button
             type="button"
@@ -67,44 +150,125 @@ export function SettingsPage() {
 
         <div className="mt-6 space-y-4">
           <GlassCard className="border-zinc-800 bg-zinc-900/50">
-            <h2 className="font-semibold text-white">Pharmacy details</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              {[
-                ['Name', pharmacy.name],
-                ['Email', pharmacy.email],
-                ['Mobile', pharmacy.mobile],
-                ['Pharmacy ID', pharmacyId],
-                ['WhatsApp Phone Number ID', pharmacy.whatsappPhoneNumberId],
-                ['Business Account ID', pharmacy.businessAccountId],
-                ['Greeting image', pharmacy.greetingImageUrl || 'Not set'],
-                ['Status', pharmacy.isActive ? 'Active' : 'Inactive'],
-              ].map(([label, value]) => (
-                <div key={label} className="grid grid-cols-3 gap-2">
-                  <dt className="text-zinc-500">{label}</dt>
-                  <dd className="col-span-2 break-all font-medium text-zinc-200">{value}</dd>
-                </div>
-              ))}
-            </dl>
+            <h2 className="font-semibold text-white">Store location & hours</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Shown when patients ask for address, timing, or tap Store Location in the bot menu.
+            </p>
 
-            {pharmacy.greetingImageUrl ? (
-              <img
-                src={pharmacy.greetingImageUrl}
-                alt={pharmacy.name}
-                className="mt-4 max-h-48 rounded-xl border border-zinc-700 object-cover"
+            <form onSubmit={handleSaveStoreSettings} className="mt-4 space-y-4">
+              <div>
+                <Label htmlFor="store-address">Store address</Label>
+                <Input
+                  id="store-address"
+                  placeholder="123 Main Road, City"
+                  className="mt-1.5 border-zinc-700 bg-zinc-950"
+                  value={storeAddress}
+                  onChange={(e) => setStoreAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="store-hours">Store hours</Label>
+                <Input
+                  id="store-hours"
+                  placeholder="Mon-Sat: 9 AM - 9 PM, Sun: 10 AM - 6 PM"
+                  className="mt-1.5 border-zinc-700 bg-zinc-950"
+                  value={storeHours}
+                  onChange={(e) => setStoreHours(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="store-map">Google Maps link (optional)</Label>
+                <Input
+                  id="store-map"
+                  type="url"
+                  placeholder="https://maps.google.com/..."
+                  className="mt-1.5 border-zinc-700 bg-zinc-950"
+                  value={storeMapUrl}
+                  onChange={(e) => setStoreMapUrl(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="animate-spin" size={16} /> : null}
+                Save store settings
+              </Button>
+            </form>
+          </GlassCard>
+
+          <GlassCard className="border-zinc-800 bg-zinc-900/50">
+            <h2 className="font-semibold text-white">FAQ support</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Bot matches patient questions to these FAQs. Keywords help matching (comma-separated).
+            </p>
+
+            <form onSubmit={handleAddFaq} className="mt-4 space-y-3">
+              <Input
+                placeholder="Question: Do you deliver?"
+                className="border-zinc-700 bg-zinc-950"
+                value={faqForm.question}
+                onChange={(e) => setFaqForm((f) => ({ ...f, question: e.target.value }))}
               />
-            ) : null}
+              <Input
+                placeholder="Answer: Yes, within 5km radius."
+                className="border-zinc-700 bg-zinc-950"
+                value={faqForm.answer}
+                onChange={(e) => setFaqForm((f) => ({ ...f, answer: e.target.value }))}
+              />
+              <Input
+                placeholder="Keywords: delivery, home delivery, deliver"
+                className="border-zinc-700 bg-zinc-950"
+                value={faqForm.keywords}
+                onChange={(e) => setFaqForm((f) => ({ ...f, keywords: e.target.value }))}
+              />
+              <Button type="submit" disabled={saving}>
+                <Plus size={16} />
+                Add FAQ
+              </Button>
+            </form>
+
+            <div className="mt-4 space-y-2">
+              {loadingFaqs ? (
+                <div className="flex justify-center py-4 text-zinc-500">
+                  <Loader2 className="animate-spin" size={20} />
+                </div>
+              ) : faqs.length === 0 ? (
+                <p className="text-sm text-zinc-500">No FAQs yet. Add common patient questions above.</p>
+              ) : (
+                faqs.map((faq) => (
+                  <div
+                    key={faq._id}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-white">{faq.question}</p>
+                      <p className="mt-1 text-sm text-zinc-400">{faq.answer}</p>
+                      {faq.keywords.length > 0 ? (
+                        <p className="mt-1 text-xs text-zinc-600">
+                          Keywords: {faq.keywords.join(', ')}
+                        </p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteFaq(faq._id)}
+                      className="shrink-0 rounded-lg p-2 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </GlassCard>
 
           <GlassCard className="border-zinc-800 bg-zinc-900/50">
             <h2 className="font-semibold text-white">Payment settings</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Default payment link and QR code sent to patients when order status is Payment
-              Pending. If only link is set, QR is auto-generated.
+              Default payment link and QR sent when order status is Payment Pending.
             </p>
 
             <form onSubmit={handleSavePaymentSettings} className="mt-4 space-y-4">
               <div>
-                <Label htmlFor="payment-link">Payment link (UPI / Razorpay / Paytm)</Label>
+                <Label htmlFor="payment-link">Payment link</Label>
                 <Input
                   id="payment-link"
                   type="url"
@@ -124,13 +288,6 @@ export function SettingsPage() {
                   onChange={(e) => setPaymentQrImageUrl(e.target.value)}
                 />
               </div>
-              {paymentQrImageUrl ? (
-                <img
-                  src={paymentQrImageUrl}
-                  alt="Payment QR preview"
-                  className="max-h-40 rounded-xl border border-zinc-700 object-contain"
-                />
-              ) : null}
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="animate-spin" size={16} /> : null}
                 Save payment settings
@@ -142,19 +299,14 @@ export function SettingsPage() {
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
               <h2 className="font-semibold text-emerald-200">WhatsApp integration</h2>
               <p className="mt-2 text-sm text-emerald-100/80">
-                WhatsApp is connected. Incoming patient messages and pharmacist replies are
-                delivered through the Meta WhatsApp Business API.
+                WhatsApp is connected. Bot service menu, FAQs, and order updates are active.
               </p>
             </div>
           ) : (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5">
               <h2 className="font-semibold text-amber-200">WhatsApp integration</h2>
               <p className="mt-2 text-sm text-amber-100/80">
-                {!pharmacy.whatsappIntegration?.serverTokenConfigured
-                  ? 'Meta access token is not configured on the server yet. Add META_ACCESS_TOKEN and META_VERIFY_TOKEN in your backend environment (Replit Secrets / .env).'
-                  : !pharmacy.whatsappIntegration?.pharmacyNumberConfigured
-                    ? 'Your pharmacy WhatsApp Phone Number ID is still pending. Update it in pharmacy settings with the ID from Meta Business Manager.'
-                    : 'WhatsApp integration is not fully connected yet. The dashboard works with database-only messaging until setup is complete.'}
+                Configure Meta tokens and WhatsApp Phone Number ID to enable bot replies.
               </p>
             </div>
           )}

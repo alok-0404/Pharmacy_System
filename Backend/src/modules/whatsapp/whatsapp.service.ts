@@ -17,7 +17,7 @@ import { conversationService } from '../conversation/conversation.service';
 import { orderService } from '../order/order.service';
 import { botFlowService } from '../../bot/bot-flow.service';
 import { Intent } from '../../bot/intent-detector';
-import { SERVICE_MENU_BODY, getServiceOptionLabel } from '../../bot/service-menu';
+import { SERVICE_MENU_BODY, getServiceOptionLabel, SERVICE_MENU_ROWS } from '../../bot/service-menu';
 import { sendInteractiveListMessage } from './whatsapp.interactive';
 import { resolvePublicUrl } from '../../utils/publicUrl';
 import { isServerWhatsappConfigured } from '../../utils/whatsappIntegration';
@@ -328,6 +328,9 @@ export class WhatsAppService {
       context: {
         name: pharmacy.name,
         greetingImageUrl: pharmacy.greetingImageUrl,
+        storeAddress: pharmacy.storeAddress,
+        storeHours: pharmacy.storeHours,
+        storeMapUrl: pharmacy.storeMapUrl,
       },
     });
 
@@ -428,7 +431,7 @@ export class WhatsAppService {
       return;
     }
 
-    const menuSummary = `Service menu: ${getServiceOptionLabel('upload_prescription')}, ${getServiceOptionLabel('order_status')}, ${getServiceOptionLabel('refill_medicine')}, ${getServiceOptionLabel('talk_pharmacist')}`;
+    const menuSummary = `Service menu: ${SERVICE_MENU_ROWS.map((row) => getServiceOptionLabel(row.id)).join(', ')}`;
 
     try {
       const sendResult = await sendInteractiveListMessage(

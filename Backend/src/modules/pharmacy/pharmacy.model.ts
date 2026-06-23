@@ -15,6 +15,9 @@ export interface IPharmacy extends Document, ISoftDelete, ITimestamps, SoftDelet
   greetingImageUrl?: string;
   paymentLinkUrl?: string;
   paymentQrImageUrl?: string;
+  storeAddress?: string;
+  storeHours?: string;
+  storeMapUrl?: string;
   isActive: boolean;
 }
 
@@ -28,6 +31,9 @@ const pharmacySchema = new Schema<IPharmacy>(
     greetingImageUrl: { type: String, trim: true },
     paymentLinkUrl: { type: String, trim: true },
     paymentQrImageUrl: { type: String, trim: true },
+    storeAddress: { type: String, trim: true },
+    storeHours: { type: String, trim: true },
+    storeMapUrl: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },

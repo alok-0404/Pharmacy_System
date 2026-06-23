@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Package } from 'lucide-react';
-import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, updateOrderStatus } from '../api/orders';
+import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrderPaymentDetails, updateOrderStatus } from '../api/orders';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import type { Order, OrderStatus, PopulatedPatient } from '../types';
@@ -28,6 +28,9 @@ export function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState('');
+  const [paymentQrImageUrl, setPaymentQrImageUrl] = useState('');
+  const [sendingPayment, setSendingPayment] = useState(false);
 
   const loadOrders = async () => {
     if (!pharmacyId) return;
@@ -73,6 +76,9 @@ export function OrdersPage() {
         rejectionReason: status === 'prescription_rejected' ? rejectionReason : undefined,
         paymentAmount:
           status === 'payment_pending' && paymentAmount ? Number(paymentAmount) : undefined,
+        paymentLinkUrl: status === 'payment_pending' ? paymentLinkUrl.trim() || undefined : undefined,
+        paymentQrImageUrl:
+          status === 'payment_pending' ? paymentQrImageUrl.trim() || undefined : undefined,
         refillDueAt:
           status === 'order_completed'
             ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -83,10 +89,32 @@ export function OrdersPage() {
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
       setRejectionReason('');
       setPaymentAmount('');
+      setPaymentLinkUrl('');
+      setPaymentQrImageUrl('');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to update order');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleSendPayment = async () => {
+    if (!pharmacyId || !selectedOrder) return;
+
+    setSendingPayment(true);
+    setError(null);
+
+    try {
+      const updated = await sendOrderPaymentDetails(pharmacyId, selectedOrder._id, {
+        paymentLinkUrl: paymentLinkUrl.trim() || undefined,
+        paymentQrImageUrl: paymentQrImageUrl.trim() || undefined,
+      });
+      setSelectedOrder(updated);
+      setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to send payment details');
+    } finally {
+      setSendingPayment(false);
     }
   };
 
@@ -184,6 +212,49 @@ export function OrdersPage() {
                 </div>
               ) : null}
 
+              {selectedOrder.status === 'payment_pending' ? (
+                <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+                  <p className="text-sm font-medium text-amber-200">Payment details</p>
+                  {selectedOrder.paymentDetailsSentAt ? (
+                    <p className="mt-1 text-xs text-amber-100/70">
+                      Last sent: {new Date(selectedOrder.paymentDetailsSentAt).toLocaleString()}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-amber-100/70">Not sent yet</p>
+                  )}
+                  {selectedOrder.paymentAmount ? (
+                    <p className="mt-2 text-sm text-amber-100">Amount: ₹{selectedOrder.paymentAmount}</p>
+                  ) : null}
+
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={paymentLinkUrl}
+                      onChange={(e) => setPaymentLinkUrl(e.target.value)}
+                      placeholder="Payment link (optional override)"
+                      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                    />
+                    <input
+                      value={paymentQrImageUrl}
+                      onChange={(e) => setPaymentQrImageUrl(e.target.value)}
+                      placeholder="QR image URL (optional override)"
+                      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={sendingPayment}
+                      onClick={() => void handleSendPayment()}
+                      className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+                    >
+                      {sendingPayment ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        'Send Payment Link & QR'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="mt-6">
                 <p className="mb-3 text-sm font-medium text-zinc-300">Status timeline</p>
                 <ul className="space-y-2">
@@ -214,14 +285,28 @@ export function OrdersPage() {
                   ) : null}
 
                   {nextActions.includes('payment_pending') ? (
-                    <input
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      placeholder="Payment amount (₹)"
-                      type="number"
-                      min="0"
-                      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
-                    />
+                    <>
+                      <input
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        placeholder="Payment amount (₹)"
+                        type="number"
+                        min="0"
+                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                      />
+                      <input
+                        value={paymentLinkUrl}
+                        onChange={(e) => setPaymentLinkUrl(e.target.value)}
+                        placeholder="Payment link (uses Settings default if empty)"
+                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                      />
+                      <input
+                        value={paymentQrImageUrl}
+                        onChange={(e) => setPaymentQrImageUrl(e.target.value)}
+                        placeholder="QR image URL (optional — auto-generated from link)"
+                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                      />
+                    </>
                   ) : null}
 
                   <div className="flex flex-wrap gap-2">

@@ -25,6 +25,9 @@ export interface IOrder extends Document, ISoftDelete, ITimestamps, SoftDeleteMe
   status: OrderStatus;
   rejectionReason?: string;
   paymentAmount?: number;
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
+  paymentDetailsSentAt?: Date;
   paymentStatus?: PaymentStatus;
   deliveryType?: DeliveryType;
   refillDueAt?: Date;
@@ -55,6 +58,9 @@ const orderSchema = new Schema<IOrder>(
     },
     rejectionReason: { type: String, trim: true },
     paymentAmount: { type: Number, min: 0 },
+    paymentLinkUrl: { type: String, trim: true },
+    paymentQrImageUrl: { type: String, trim: true },
+    paymentDetailsSentAt: { type: Date },
     paymentStatus: {
       type: String,
       enum: Object.values(PaymentStatus),

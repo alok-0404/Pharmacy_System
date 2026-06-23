@@ -13,6 +13,8 @@ export interface IPharmacy extends Document, ISoftDelete, ITimestamps, SoftDelet
   whatsappPhoneNumberId: string;
   businessAccountId: string;
   greetingImageUrl?: string;
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
   isActive: boolean;
 }
 
@@ -24,6 +26,8 @@ const pharmacySchema = new Schema<IPharmacy>(
     whatsappPhoneNumberId: { type: String, required: true, trim: true },
     businessAccountId: { type: String, required: true, trim: true },
     greetingImageUrl: { type: String, trim: true },
+    paymentLinkUrl: { type: String, trim: true },
+    paymentQrImageUrl: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },

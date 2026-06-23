@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { ApiResponse } from '../../utils/ApiResponse';
 import { HTTP_STATUS } from '../../config/constants';
+import { ApiError } from '../../utils/ApiError';
 import { pharmacyService } from './pharmacy.service';
 import { getWhatsappIntegrationStatus } from '../../utils/whatsappIntegration';
 
@@ -18,6 +19,23 @@ export const getPharmacy = asyncHandler(async (req: Request, res: Response) => {
 
   res.status(HTTP_STATUS.OK).json(
     ApiResponse.success('Pharmacy retrieved successfully', {
+      ...pharmacy.toJSON(),
+      whatsappIntegration: getWhatsappIntegrationStatus(pharmacy),
+    }),
+  );
+});
+
+export const updatePaymentSettings = asyncHandler(async (req: Request, res: Response) => {
+  const pharmacyId = String(req.params.id);
+
+  if (!req.tenantId || req.tenantId !== pharmacyId) {
+    throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You can only update your own pharmacy settings');
+  }
+
+  const pharmacy = await pharmacyService.updatePaymentSettings(pharmacyId, req.body);
+
+  res.status(HTTP_STATUS.OK).json(
+    ApiResponse.success('Payment settings updated successfully', {
       ...pharmacy.toJSON(),
       whatsappIntegration: getWhatsappIntegrationStatus(pharmacy),
     }),

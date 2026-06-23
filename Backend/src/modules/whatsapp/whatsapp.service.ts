@@ -587,6 +587,34 @@ export class WhatsAppService {
       message,
     });
   }
+
+  async sendImageMessageForPharmacy(
+    pharmacyId: string,
+    to: string,
+    imageUrl: string,
+    caption?: string,
+  ): Promise<MetaSendMessageResponse> {
+    const pharmacy = await Pharmacy.findById(pharmacyId);
+
+    if (!pharmacy) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Pharmacy not found');
+    }
+
+    if (!pharmacy.isActive) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Pharmacy is not active');
+    }
+
+    if (!isServerWhatsappConfigured()) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'WhatsApp is not configured on the server');
+    }
+
+    return this.sendImageMessage({
+      phoneNumberId: pharmacy.whatsappPhoneNumberId,
+      to,
+      imageUrl,
+      caption,
+    });
+  }
 }
 
 export const whatsappService = new WhatsAppService();

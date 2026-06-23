@@ -7,7 +7,14 @@ import { Patient } from '../patient/patient.model';
 import { isValidObjectId } from '../../utils/objectId';
 import { handleMongooseError } from '../../utils/mongooseError';
 import { orderStatusService, UpdateOrderStatusInput } from './order-status.service';
+import { paymentNotificationService } from '../notification/payment-notification.service';
+import { Pharmacy } from '../pharmacy/pharmacy.model';
 import { Types } from 'mongoose';
+
+export interface SendPaymentDetailsInput {
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
+}
 
 export interface CreateOrderFromPrescriptionInput {
   pharmacyId: string;
@@ -121,6 +128,37 @@ export class OrderService {
     input: UpdateOrderStatusInput,
   ): Promise<IOrder> {
     return orderStatusService.transitionOrder(pharmacyId, orderId, input);
+  }
+
+  async sendOrderPaymentDetails(
+    pharmacyId: string,
+    orderId: string,
+    input?: SendPaymentDetailsInput,
+  ): Promise<IOrder> {
+    const order = await this.getOrderById(pharmacyId, orderId);
+
+    if (order.status !== OrderStatus.PAYMENT_PENDING) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Order is not awaiting payment');
+    }
+
+    const pharmacy = await Pharmacy.findById(pharmacyId);
+    const patient = await Patient.findOne({ _id: order.patientId, pharmacyId });
+
+    if (!pharmacy || !patient) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Pharmacy or patient not found');
+    }
+
+    const paymentLink = paymentNotificationService.resolvePaymentLink(order, pharmacy, input);
+    const paymentQr = paymentNotificationService.resolveQrImageUrl(order, pharmacy, input);
+
+    if (!paymentLink && !paymentQr) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        'Payment link or QR code is required. Add it in Settings or enter details for this order.',
+      );
+    }
+
+    return paymentNotificationService.sendPaymentDetails(order, pharmacy, patient, input);
   }
 
   async getOrderStats(pharmacyId: string) {

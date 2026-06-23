@@ -37,6 +37,22 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
   res.status(HTTP_STATUS.OK).json(ApiResponse.success('Order status updated successfully', order));
 });
 
+export const sendOrderPaymentDetails = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.tenantId) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Tenant ID is required');
+  }
+
+  const order = await orderService.sendOrderPaymentDetails(
+    req.tenantId,
+    String(req.params.id),
+    req.body,
+  );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(ApiResponse.success('Payment link and QR sent successfully', order));
+});
+
 export const getOrderStats = asyncHandler(async (req: Request, res: Response) => {
   if (!req.tenantId) {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Tenant ID is required');

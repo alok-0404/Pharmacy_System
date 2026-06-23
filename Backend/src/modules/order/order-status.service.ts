@@ -19,11 +19,14 @@ import { whatsappService } from '../whatsapp/whatsapp.service';
 import { Message, MessageStatus, MessageType, SenderType } from '../message/message.model';
 import { Conversation } from '../conversation/conversation.model';
 import { logger } from '../../utils/logger';
+import { paymentNotificationService } from '../notification/payment-notification.service';
 
 export interface UpdateOrderStatusInput {
   status: OrderStatus;
   rejectionReason?: string;
   paymentAmount?: number;
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
   deliveryType?: DeliveryType;
   refillDueAt?: Date;
   note?: string;
@@ -134,6 +137,14 @@ export class OrderStatusService {
       order.paymentAmount = input.paymentAmount;
     }
 
+    if (input.paymentLinkUrl) {
+      order.paymentLinkUrl = input.paymentLinkUrl;
+    }
+
+    if (input.paymentQrImageUrl) {
+      order.paymentQrImageUrl = input.paymentQrImageUrl;
+    }
+
     if (input.deliveryType) {
       order.deliveryType = input.deliveryType;
     }
@@ -157,6 +168,18 @@ export class OrderStatusService {
     }
 
     await this.notifyPatient(order, input.status, input);
+
+    if (input.status === OrderStatus.PAYMENT_PENDING) {
+      const pharmacy = await Pharmacy.findById(order.pharmacyId);
+      const patient = await Patient.findById(order.patientId);
+
+      if (pharmacy && patient) {
+        await paymentNotificationService.sendPaymentDetails(order, pharmacy, patient, {
+          paymentLinkUrl: input.paymentLinkUrl,
+          paymentQrImageUrl: input.paymentQrImageUrl,
+        });
+      }
+    }
 
     return order;
   }

@@ -14,6 +14,11 @@ export interface CreatePharmacyInput {
   isActive?: boolean;
 }
 
+export interface UpdatePaymentSettingsInput {
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
+}
+
 export class PharmacyService {
   async createPharmacy(data: CreatePharmacyInput): Promise<IPharmacy> {
     try {
@@ -36,6 +41,28 @@ export class PharmacyService {
     }
 
     return pharmacy;
+  }
+
+  async updatePaymentSettings(
+    pharmacyId: string,
+    data: UpdatePaymentSettingsInput,
+  ): Promise<IPharmacy> {
+    const pharmacy = await this.getPharmacyById(pharmacyId);
+
+    if (data.paymentLinkUrl !== undefined) {
+      pharmacy.paymentLinkUrl = data.paymentLinkUrl.trim() || undefined;
+    }
+
+    if (data.paymentQrImageUrl !== undefined) {
+      pharmacy.paymentQrImageUrl = data.paymentQrImageUrl.trim() || undefined;
+    }
+
+    try {
+      await pharmacy.save();
+      return pharmacy;
+    } catch (error) {
+      return handleMongooseError(error);
+    }
   }
 }
 

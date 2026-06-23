@@ -13,3 +13,13 @@ export const createPharmacySchema = z.object({
 export const pharmacyIdParamsSchema = z.object({
   id: z.string().min(1, 'Pharmacy ID is required'),
 });
+
+export const updatePaymentSettingsSchema = z.object({
+  paymentLinkUrl: z.string().url('Invalid payment link URL').or(z.literal('')).optional(),
+  paymentQrImageUrl: z
+    .string()
+    .url('Invalid QR image URL')
+    .or(z.string().startsWith('/'))
+    .or(z.literal(''))
+    .optional(),
+});

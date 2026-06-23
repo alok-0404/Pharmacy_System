@@ -1,5 +1,5 @@
-import { apiGet, apiPatch } from './client';
-import type { Order, OrderActivity, OrderStats, OrderStatus, UpdateOrderStatusInput } from '../types';
+import { apiGet, apiPatch, apiPost } from './client';
+import type { Order, OrderActivity, OrderStats, OrderStatus, SendPaymentDetailsInput, UpdateOrderStatusInput } from '../types';
 
 const API_PREFIX = '/api/v1';
 
@@ -16,6 +16,12 @@ export const updateOrderStatus = (
   orderId: string,
   data: UpdateOrderStatusInput,
 ) => apiPatch<Order>(`${API_PREFIX}/orders/${orderId}/status`, data, pharmacyId);
+
+export const sendOrderPaymentDetails = (
+  pharmacyId: string,
+  orderId: string,
+  data?: SendPaymentDetailsInput,
+) => apiPost<Order>(`${API_PREFIX}/orders/${orderId}/send-payment`, data ?? {}, pharmacyId);
 
 export const getOrderStats = (pharmacyId: string) =>
   apiGet<OrderStats>(`${API_PREFIX}/orders/stats`, pharmacyId);

@@ -32,7 +32,7 @@ export function getOrderStatusMessage(
     case OrderStatus.PAYMENT_PENDING:
       return `Payment is required for order #${shortId}.${
         context.paymentAmount ? ` Amount: ₹${context.paymentAmount}.` : ''
-      } Please complete payment to proceed. ${context.pharmacyName}`;
+      } We are sending your payment link and QR code shortly. — ${context.pharmacyName}`;
 
     case OrderStatus.PAYMENT_CONFIRMED:
       return `Payment received for order #${shortId}. Thank you! ${context.pharmacyName} will start preparing your order.`;

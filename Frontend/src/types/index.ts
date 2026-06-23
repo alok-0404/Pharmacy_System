@@ -18,6 +18,8 @@ export interface Pharmacy {
   whatsappPhoneNumberId: string;
   businessAccountId: string;
   greetingImageUrl?: string;
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
   isActive: boolean;
   whatsappIntegration?: WhatsappIntegrationStatus;
   createdAt?: string;
@@ -128,6 +130,9 @@ export interface Order {
   status: OrderStatus;
   rejectionReason?: string;
   paymentAmount?: number;
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
+  paymentDetailsSentAt?: string;
   paymentStatus?: string;
   deliveryType?: 'pickup' | 'delivery';
   refillDueAt?: string;
@@ -155,7 +160,19 @@ export interface UpdateOrderStatusInput {
   status: OrderStatus;
   rejectionReason?: string;
   paymentAmount?: number;
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
   deliveryType?: 'pickup' | 'delivery';
   refillDueAt?: string;
   note?: string;
+}
+
+export interface PaymentSettingsInput {
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
+}
+
+export interface SendPaymentDetailsInput {
+  paymentLinkUrl?: string;
+  paymentQrImageUrl?: string;
 }

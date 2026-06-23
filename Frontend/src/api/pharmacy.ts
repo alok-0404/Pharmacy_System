@@ -1,5 +1,5 @@
-import { apiGet, apiPost } from './client';
-import type { CreatePharmacyInput, Pharmacy } from '../types';
+import { apiGet, apiPatch, apiPost } from './client';
+import type { CreatePharmacyInput, PaymentSettingsInput, Pharmacy } from '../types';
 
 const API_PREFIX = '/api/v1';
 
@@ -8,3 +8,6 @@ export const createPharmacy = (data: CreatePharmacyInput) =>
 
 export const getPharmacy = (id: string) =>
   apiGet<Pharmacy>(`${API_PREFIX}/pharmacies/${id}`);
+
+export const updatePaymentSettings = (pharmacyId: string, data: PaymentSettingsInput) =>
+  apiPatch<Pharmacy>(`${API_PREFIX}/pharmacies/${pharmacyId}/payment-settings`, data, pharmacyId);

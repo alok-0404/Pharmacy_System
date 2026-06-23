@@ -1,16 +1,52 @@
+import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { updatePaymentSettings } from '../api/pharmacy';
+import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import { GlassCard } from '../components/ui/glass-card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 export function SettingsPage() {
   const { pharmacy, pharmacyId, refreshPharmacy } = usePharmacy();
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState(pharmacy?.paymentLinkUrl ?? '');
+  const [paymentQrImageUrl, setPaymentQrImageUrl] = useState(pharmacy?.paymentQrImageUrl ?? '');
+  const [saving, setSaving] = useState(false);
 
-  if (!pharmacy) {
+  useEffect(() => {
+    if (pharmacy) {
+      setPaymentLinkUrl(pharmacy.paymentLinkUrl ?? '');
+      setPaymentQrImageUrl(pharmacy.paymentQrImageUrl ?? '');
+    }
+  }, [pharmacy]);
+
+  if (!pharmacy || !pharmacyId) {
     return (
       <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-500">
         Pharmacy details not loaded.
       </div>
     );
   }
+
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      await updatePaymentSettings(pharmacyId, {
+        paymentLinkUrl: paymentLinkUrl.trim(),
+        paymentQrImageUrl: paymentQrImageUrl.trim(),
+      });
+      await refreshPharmacy();
+      toast.success('Payment settings saved');
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Failed to save payment settings');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-zinc-950 p-6 lg:p-8">
@@ -57,6 +93,49 @@ export function SettingsPage() {
                 className="mt-4 max-h-48 rounded-xl border border-zinc-700 object-cover"
               />
             ) : null}
+          </GlassCard>
+
+          <GlassCard className="border-zinc-800 bg-zinc-900/50">
+            <h2 className="font-semibold text-white">Payment settings</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Default payment link and QR code sent to patients when order status is Payment
+              Pending. If only link is set, QR is auto-generated.
+            </p>
+
+            <form onSubmit={handleSavePaymentSettings} className="mt-4 space-y-4">
+              <div>
+                <Label htmlFor="payment-link">Payment link (UPI / Razorpay / Paytm)</Label>
+                <Input
+                  id="payment-link"
+                  type="url"
+                  placeholder="https://pay.example.com/..."
+                  className="mt-1.5 border-zinc-700 bg-zinc-950"
+                  value={paymentLinkUrl}
+                  onChange={(e) => setPaymentLinkUrl(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="payment-qr">QR code image URL (optional)</Label>
+                <Input
+                  id="payment-qr"
+                  placeholder="https://... or /uploads/..."
+                  className="mt-1.5 border-zinc-700 bg-zinc-950"
+                  value={paymentQrImageUrl}
+                  onChange={(e) => setPaymentQrImageUrl(e.target.value)}
+                />
+              </div>
+              {paymentQrImageUrl ? (
+                <img
+                  src={paymentQrImageUrl}
+                  alt="Payment QR preview"
+                  className="max-h-40 rounded-xl border border-zinc-700 object-contain"
+                />
+              ) : null}
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="animate-spin" size={16} /> : null}
+                Save payment settings
+              </Button>
+            </form>
           </GlassCard>
 
           {pharmacy.whatsappIntegration?.connected ? (

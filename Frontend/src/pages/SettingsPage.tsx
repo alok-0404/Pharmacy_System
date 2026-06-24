@@ -18,6 +18,7 @@ export function SettingsPage() {
   const [storeAddress, setStoreAddress] = useState('');
   const [storeHours, setStoreHours] = useState('');
   const [storeMapUrl, setStoreMapUrl] = useState('');
+  const [greetingImageUrl, setGreetingImageUrl] = useState('');
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [faqForm, setFaqForm] = useState({ question: '', answer: '', keywords: '' });
   const [saving, setSaving] = useState(false);
@@ -30,6 +31,7 @@ export function SettingsPage() {
       setStoreAddress(pharmacy.storeAddress ?? '');
       setStoreHours(pharmacy.storeHours ?? '');
       setStoreMapUrl(pharmacy.storeMapUrl ?? '');
+      setGreetingImageUrl(pharmacy.greetingImageUrl ?? '/uploads/greeting/ayudha-welcome.png');
     }
   }, [pharmacy]);
 
@@ -86,6 +88,7 @@ export function SettingsPage() {
         storeAddress: storeAddress.trim(),
         storeHours: storeHours.trim(),
         storeMapUrl: storeMapUrl.trim(),
+        greetingImageUrl: greetingImageUrl.trim(),
       });
       await refreshPharmacy();
       toast.success('Store settings saved');
@@ -186,6 +189,19 @@ export function SettingsPage() {
                   value={storeMapUrl}
                   onChange={(e) => setStoreMapUrl(e.target.value)}
                 />
+              </div>
+              <div>
+                <Label htmlFor="greeting-image">Welcome image URL (WhatsApp greeting)</Label>
+                <Input
+                  id="greeting-image"
+                  placeholder="/uploads/greeting/ayudha-welcome.png"
+                  className="mt-1.5 border-zinc-700 bg-zinc-950"
+                  value={greetingImageUrl}
+                  onChange={(e) => setGreetingImageUrl(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-zinc-600">
+                  Sent as the first image when a patient says Hi. Default: /uploads/greeting/ayudha-welcome.png
+                </p>
               </div>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="animate-spin" size={16} /> : null}

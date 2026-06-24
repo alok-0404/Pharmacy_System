@@ -1,4 +1,5 @@
 import type { SenderType } from '../../types';
+import { isImagePath, isPdfPath, isResolvableMediaPath, resolveMediaUrl } from '../../utils/media';
 
 interface MessageBubbleProps {
   content: string;
@@ -15,6 +16,52 @@ const senderLabels: Record<SenderType, string> = {
 
 export function MessageBubble({ content, senderType, time, messageType = 'text' }: MessageBubbleProps) {
   const isOutgoing = senderType === 'pharmacist' || senderType === 'bot';
+  const mediaUrl = isResolvableMediaPath(content) ? resolveMediaUrl(content) : null;
+
+  const renderBody = () => {
+    if (messageType === 'image' && mediaUrl) {
+      return (
+        <img
+          src={mediaUrl}
+          alt="Shared image"
+          className="max-h-64 max-w-full rounded-lg object-contain"
+        />
+      );
+    }
+
+    if (messageType === 'document' && mediaUrl) {
+      if (isImagePath(content)) {
+        return (
+          <img
+            src={mediaUrl}
+            alt="Prescription"
+            className="max-h-64 max-w-full rounded-lg object-contain"
+          />
+        );
+      }
+
+      return (
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm underline"
+        >
+          {isPdfPath(content) ? 'View prescription (PDF)' : 'View document'}
+        </a>
+      );
+    }
+
+    if ((messageType === 'image' || messageType === 'document') && !mediaUrl) {
+      return (
+        <p className="text-sm italic text-slate-500">
+          {content || 'Media unavailable — file may not have been saved.'}
+        </p>
+      );
+    }
+
+    return <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>;
+  };
 
   return (
     <div className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
@@ -30,15 +77,7 @@ export function MessageBubble({ content, senderType, time, messageType = 'text' 
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
           {senderLabels[senderType]}
         </p>
-        {messageType === 'image' ? (
-          <img src={content} alt="Shared image" className="max-h-48 rounded-lg object-contain" />
-        ) : messageType === 'document' ? (
-          <a href={content} target="_blank" rel="noreferrer" className="text-sm underline">
-            View document
-          </a>
-        ) : (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
-        )}
+        {renderBody()}
         {time ? (
           <p className={`mt-1 text-[10px] ${isOutgoing ? 'text-white/70' : 'text-slate-400'}`}>
             {time}

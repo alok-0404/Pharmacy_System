@@ -7,6 +7,7 @@ import { InboxPage } from './pages/InboxPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { MedicinesPage } from './pages/MedicinesPage';
 import { Loader2 } from 'lucide-react';
 
 function LoadingScreen() {
@@ -35,6 +36,7 @@ function ProtectedDashboard() {
         <Route path="inbox" element={<InboxPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="patients" element={<PatientsPage />} />
+        <Route path="medicines" element={<MedicinesPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>

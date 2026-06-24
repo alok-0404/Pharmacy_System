@@ -94,6 +94,16 @@ class TemplateReplyGenerator implements ReplyGenerator {
           text: `To refill your medicines at ${context.name}, please send your prescription photo/PDF or the medicine names you need.`,
         };
 
+      case Intent.MEDICINE_AVAILABILITY:
+        return {
+          text: `Please type the *medicine name* you want to check (e.g. Paracetamol 500mg).\n\nWe will reply with stock and price from ${context.name}.`,
+        };
+
+      case Intent.REPEAT_ORDER:
+        return {
+          text: `Repeat order request received at ${context.name}.`,
+        };
+
       case Intent.STORE_INFO:
         return { text: formatStoreInfo(context) };
 
@@ -122,4 +132,16 @@ export const generateReply = (
   context: PharmacyContext,
   orderStatus?: OrderStatus,
   faqText?: string,
-): BotReply => defaultGenerator.generate(intent, context, orderStatus, faqText);
+  medicineText?: string,
+  repeatOrderText?: string,
+): BotReply => {
+  if (repeatOrderText) {
+    return { text: repeatOrderText };
+  }
+
+  if (medicineText) {
+    return { text: medicineText };
+  }
+
+  return defaultGenerator.generate(intent, context, orderStatus, faqText);
+};

@@ -17,6 +17,7 @@ import { conversationService } from '../conversation/conversation.service';
 import { orderService } from '../order/order.service';
 import { botFlowService } from '../../bot/bot-flow.service';
 import { Intent } from '../../bot/intent-detector';
+import { DEFAULT_GREETING_IMAGE_URL } from '../../config/greeting.constants';
 import { SERVICE_MENU_BODY, getServiceOptionLabel, SERVICE_MENU_ROWS } from '../../bot/service-menu';
 import { sendInteractiveListMessage } from './whatsapp.interactive';
 import { resolvePublicUrl } from '../../utils/publicUrl';
@@ -327,7 +328,7 @@ export class WhatsAppService {
       patientId: String(patient._id),
       context: {
         name: pharmacy.name,
-        greetingImageUrl: pharmacy.greetingImageUrl,
+        greetingImageUrl: pharmacy.greetingImageUrl || DEFAULT_GREETING_IMAGE_URL,
         storeAddress: pharmacy.storeAddress,
         storeHours: pharmacy.storeHours,
         storeMapUrl: pharmacy.storeMapUrl,
@@ -364,19 +365,21 @@ export class WhatsAppService {
       return;
     }
 
-    const sendResult =
-      botResponse.intent === Intent.GREETING && botResponse.imageUrl
-        ? await this.sendImageMessage({
-            phoneNumberId,
-            to: senderMobile,
-            imageUrl: resolvePublicUrl(botResponse.imageUrl),
-            caption: botResponse.reply,
-          })
-        : await this.sendMessage({
-            phoneNumberId,
-            to: senderMobile,
-            message: botResponse.reply,
-          });
+    const isGreetingImage =
+      botResponse.intent === Intent.GREETING && Boolean(botResponse.imageUrl);
+
+    const sendResult = isGreetingImage
+      ? await this.sendImageMessage({
+          phoneNumberId,
+          to: senderMobile,
+          imageUrl: resolvePublicUrl(botResponse.imageUrl!),
+          caption: botResponse.reply,
+        })
+      : await this.sendMessage({
+          phoneNumberId,
+          to: senderMobile,
+          message: botResponse.reply,
+        });
 
     try {
       await Message.create({
@@ -384,11 +387,8 @@ export class WhatsAppService {
         conversationId,
         patientId,
         senderType: SenderType.BOT,
-        content: botResponse.reply,
-        messageType:
-          botResponse.intent === Intent.GREETING && botResponse.imageUrl
-            ? MessageType.IMAGE
-            : MessageType.TEXT,
+        content: isGreetingImage ? botResponse.imageUrl! : botResponse.reply,
+        messageType: isGreetingImage ? MessageType.IMAGE : MessageType.TEXT,
         whatsappMessageId: sendResult.messages?.[0]?.id,
         status: MessageStatus.SENT,
       });

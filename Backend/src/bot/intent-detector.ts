@@ -5,6 +5,8 @@ export enum Intent {
   UPLOAD_PRESCRIPTION = 'UPLOAD_PRESCRIPTION',
   ORDER_STATUS = 'ORDER_STATUS',
   REFILL_MEDICINE = 'REFILL_MEDICINE',
+  MEDICINE_AVAILABILITY = 'MEDICINE_AVAILABILITY',
+  REPEAT_ORDER = 'REPEAT_ORDER',
   STORE_INFO = 'STORE_INFO',
   FAQ_SUPPORT = 'FAQ_SUPPORT',
   TALK_PHARMACIST = 'TALK_PHARMACIST',
@@ -25,7 +27,10 @@ const GREETING_PATTERN = /\b(hi|hello|hey|namaste|hola)\b/i;
 const MENU_PATTERN = /\b(menu|services|options|help)\b/i;
 const UPLOAD_PATTERN = /\b(upload|prescription|recipe)\b/i;
 const ORDER_STATUS_PATTERN = /\b(order\s*status|track\s*order|my\s*order)\b/i;
-const REFILL_PATTERN = /\b(refill|reorder|medicine\s*again|repeat\s*order)\b/i;
+const REFILL_PATTERN = /\b(refill|medicine\s*again)\b/i;
+const REPEAT_ORDER_PATTERN = /\b(repeat\s*order|last\s*order|same\s*order|order\s*again)\b/i;
+const MEDICINE_AVAILABILITY_PATTERN =
+  /\b(available|availability|in\s*stock|stock|price|cost|do\s*you\s*have|medicine)\b/i;
 const STORE_PATTERN =
   /\b(location|address|timing|timings|hours|open|close|where|map|store|directions)\b/i;
 const FAQ_PATTERN = /\b(faq|faqs|question|help\s*me|support)\b/i;
@@ -35,6 +40,8 @@ const BUTTON_INTENT_MAP: Record<string, Intent> = {
   [SERVICE_OPTION_IDS.UPLOAD_PRESCRIPTION]: Intent.UPLOAD_PRESCRIPTION,
   [SERVICE_OPTION_IDS.ORDER_STATUS]: Intent.ORDER_STATUS,
   [SERVICE_OPTION_IDS.REFILL_MEDICINE]: Intent.REFILL_MEDICINE,
+  [SERVICE_OPTION_IDS.MEDICINE_AVAILABILITY]: Intent.MEDICINE_AVAILABILITY,
+  [SERVICE_OPTION_IDS.REPEAT_ORDER]: Intent.REPEAT_ORDER,
   [SERVICE_OPTION_IDS.STORE_INFO]: Intent.STORE_INFO,
   [SERVICE_OPTION_IDS.FAQ_SUPPORT]: Intent.FAQ_SUPPORT,
   [SERVICE_OPTION_IDS.TALK_PHARMACIST]: Intent.TALK_PHARMACIST,
@@ -68,8 +75,16 @@ class RuleBasedIntentDetector implements IntentDetector {
       return { intent: Intent.ORDER_STATUS, confidence: 0.9 };
     }
 
+    if (REPEAT_ORDER_PATTERN.test(normalized)) {
+      return { intent: Intent.REPEAT_ORDER, confidence: 0.9 };
+    }
+
     if (REFILL_PATTERN.test(normalized)) {
       return { intent: Intent.REFILL_MEDICINE, confidence: 0.9 };
+    }
+
+    if (MEDICINE_AVAILABILITY_PATTERN.test(normalized)) {
+      return { intent: Intent.MEDICINE_AVAILABILITY, confidence: 0.85 };
     }
 
     if (STORE_PATTERN.test(normalized)) {

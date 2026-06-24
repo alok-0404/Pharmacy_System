@@ -23,6 +23,7 @@ export interface UpdateStoreSettingsInput {
   storeAddress?: string;
   storeHours?: string;
   storeMapUrl?: string;
+  greetingImageUrl?: string;
 }
 
 export class PharmacyService {
@@ -87,6 +88,10 @@ export class PharmacyService {
 
     if (data.storeMapUrl !== undefined) {
       pharmacy.storeMapUrl = data.storeMapUrl.trim() || undefined;
+    }
+
+    if (data.greetingImageUrl !== undefined) {
+      pharmacy.greetingImageUrl = data.greetingImageUrl.trim() || undefined;
     }
 
     try {

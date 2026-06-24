@@ -179,6 +179,25 @@ export interface StoreSettingsInput {
   storeAddress?: string;
   storeHours?: string;
   storeMapUrl?: string;
+  greetingImageUrl?: string;
+}
+
+export interface Medicine {
+  _id: string;
+  pharmacyId: string;
+  name: string;
+  unit: string;
+  price: number;
+  stockQuantity: number;
+  isActive: boolean;
+}
+
+export interface CreateMedicineInput {
+  name: string;
+  unit?: string;
+  price: number;
+  stockQuantity: number;
+  isActive?: boolean;
 }
 
 export interface Faq {

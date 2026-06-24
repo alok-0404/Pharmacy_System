@@ -3,6 +3,8 @@ export const SERVICE_OPTION_IDS = {
   UPLOAD_PRESCRIPTION: 'upload_prescription',
   ORDER_STATUS: 'order_status',
   REFILL_MEDICINE: 'refill_medicine',
+  MEDICINE_AVAILABILITY: 'medicine_availability',
+  REPEAT_ORDER: 'repeat_order',
   STORE_INFO: 'store_info',
   FAQ_SUPPORT: 'faq_support',
   TALK_PHARMACIST: 'talk_pharmacist',
@@ -30,6 +32,16 @@ export const SERVICE_MENU_ROWS = [
     id: SERVICE_OPTION_IDS.REFILL_MEDICINE,
     title: 'Refill Medicine',
     description: 'Reorder your medicines',
+  },
+  {
+    id: SERVICE_OPTION_IDS.MEDICINE_AVAILABILITY,
+    title: 'Check Medicine',
+    description: 'Stock & price lookup',
+  },
+  {
+    id: SERVICE_OPTION_IDS.REPEAT_ORDER,
+    title: 'Repeat Last Order',
+    description: 'Reorder from previous prescription',
   },
   {
     id: SERVICE_OPTION_IDS.STORE_INFO,

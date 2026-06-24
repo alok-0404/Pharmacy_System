@@ -35,3 +35,11 @@ export const updateStoreSettingsSchema = z.object({
     .or(z.literal(''))
     .optional(),
 });
+
+const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp'] as const;
+
+export const uploadPharmacyAssetSchema = z.object({
+  type: z.enum(['payment_qr', 'greeting_image']),
+  mimeType: z.enum(ALLOWED_IMAGE_MIME),
+  file: z.string().min(1, 'File data is required'),
+});

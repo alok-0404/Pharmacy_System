@@ -58,3 +58,20 @@ export const updateStoreSettings = asyncHandler(async (req: Request, res: Respon
     }),
   );
 });
+
+export const uploadPharmacyAsset = asyncHandler(async (req: Request, res: Response) => {
+  const pharmacyId = String(req.params.id);
+
+  if (!req.tenantId || req.tenantId !== pharmacyId) {
+    throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You can only update your own pharmacy settings');
+  }
+
+  const pharmacy = await pharmacyService.uploadAsset(pharmacyId, req.body);
+
+  res.status(HTTP_STATUS.OK).json(
+    ApiResponse.success('Image uploaded successfully', {
+      ...pharmacy.toJSON(),
+      whatsappIntegration: getWhatsappIntegrationStatus(pharmacy),
+    }),
+  );
+});

@@ -3,6 +3,15 @@ import { ApiError } from '../../utils/ApiError';
 import { HTTP_STATUS } from '../../config/constants';
 import { isValidObjectId } from '../../utils/objectId';
 import { handleMongooseError } from '../../utils/mongooseError';
+import { saveBufferToUploads } from '../../utils/mediaStorage';
+
+const MIME_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+const MAX_ASSET_BYTES = 5 * 1024 * 1024;
 
 export interface CreatePharmacyInput {
   name: string;
@@ -24,6 +33,14 @@ export interface UpdateStoreSettingsInput {
   storeHours?: string;
   storeMapUrl?: string;
   greetingImageUrl?: string;
+}
+
+export type PharmacyAssetType = 'payment_qr' | 'greeting_image';
+
+export interface UploadPharmacyAssetInput {
+  type: PharmacyAssetType;
+  mimeType: string;
+  file: string;
 }
 
 export class PharmacyService {
@@ -92,6 +109,46 @@ export class PharmacyService {
 
     if (data.greetingImageUrl !== undefined) {
       pharmacy.greetingImageUrl = data.greetingImageUrl.trim() || undefined;
+    }
+
+    try {
+      await pharmacy.save();
+      return pharmacy;
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+  }
+
+  async uploadAsset(pharmacyId: string, data: UploadPharmacyAssetInput): Promise<IPharmacy> {
+    const pharmacy = await this.getPharmacyById(pharmacyId);
+    const extension = MIME_EXTENSION[data.mimeType];
+
+    if (!extension) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Unsupported image type');
+    }
+
+    const base64 = data.file.includes(',') ? data.file.split(',')[1] : data.file;
+    const buffer = Buffer.from(base64, 'base64');
+
+    if (!buffer.length) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid file data');
+    }
+
+    if (buffer.length > MAX_ASSET_BYTES) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Image must be 5 MB or smaller');
+    }
+
+    const subdir =
+      data.type === 'payment_qr'
+        ? `payment-qr/${pharmacyId}`
+        : `greeting/${pharmacyId}`;
+
+    const url = await saveBufferToUploads(subdir, buffer, extension);
+
+    if (data.type === 'payment_qr') {
+      pharmacy.paymentQrImageUrl = url;
+    } else {
+      pharmacy.greetingImageUrl = url;
     }
 
     try {

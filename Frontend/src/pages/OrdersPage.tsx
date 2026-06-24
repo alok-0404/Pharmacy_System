@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Package } from 'lucide-react';
+import { toast } from 'sonner';
 import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrderPaymentDetails, updateOrderStatus } from '../api/orders';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
+import { MediaAttachment } from '../components/chat/MediaAttachment';
+import { isResolvableMediaPath } from '../utils/media';
 import type { Order, OrderStatus, PopulatedPatient } from '../types';
 
 function getPatientName(patient: PopulatedPatient | string): string {
@@ -19,7 +22,7 @@ function formatStatus(status: OrderStatus): string {
 }
 
 export function OrdersPage() {
-  const { pharmacyId } = usePharmacy();
+  const { pharmacyId, pharmacy } = usePharmacy();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -64,6 +67,18 @@ export function OrdersPage() {
       });
   }, [pharmacyId, selectedId]);
 
+  const applyPaymentFields = (order: Order) => {
+    setPaymentAmount(order.paymentAmount?.toString() ?? '');
+    setPaymentLinkUrl(order.paymentLinkUrl ?? pharmacy?.paymentLinkUrl ?? '');
+    setPaymentQrImageUrl(order.paymentQrImageUrl ?? pharmacy?.paymentQrImageUrl ?? '');
+  };
+
+  useEffect(() => {
+    if (selectedOrder) {
+      applyPaymentFields(selectedOrder);
+    }
+  }, [selectedOrder, pharmacy?.paymentLinkUrl, pharmacy?.paymentQrImageUrl]);
+
   const handleStatusChange = async (status: OrderStatus) => {
     if (!pharmacyId || !selectedOrder) return;
 
@@ -88,9 +103,11 @@ export function OrdersPage() {
       setSelectedOrder(updated);
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
       setRejectionReason('');
-      setPaymentAmount('');
-      setPaymentLinkUrl('');
-      setPaymentQrImageUrl('');
+      applyPaymentFields(updated);
+
+      if (status === 'payment_pending') {
+        toast.success('Payment link & QR sent to patient on WhatsApp');
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to update order');
     } finally {
@@ -111,6 +128,8 @@ export function OrdersPage() {
       });
       setSelectedOrder(updated);
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
+      applyPaymentFields(updated);
+      toast.success('Payment details sent to patient on WhatsApp');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to send payment details');
     } finally {
@@ -190,31 +209,25 @@ export function OrdersPage() {
               </p>
 
               {typeof selectedOrder.prescriptionId === 'object' &&
-              selectedOrder.prescriptionId?.fileUrl ? (
+              selectedOrder.prescriptionId?.fileUrl &&
+              isResolvableMediaPath(selectedOrder.prescriptionId.fileUrl) ? (
                 <div className="mt-4">
                   <p className="mb-2 text-sm text-zinc-500">Prescription</p>
-                  {selectedOrder.prescriptionId.mimeType?.startsWith('image/') ? (
-                    <img
-                      src={selectedOrder.prescriptionId.fileUrl}
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                    <MediaAttachment
+                      content={selectedOrder.prescriptionId.fileUrl}
                       alt="Prescription"
-                      className="max-h-64 rounded-xl border border-zinc-700 object-contain"
                     />
-                  ) : (
-                    <a
-                      href={selectedOrder.prescriptionId.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-violet-400 hover:underline"
-                    >
-                      View prescription file
-                    </a>
-                  )}
+                  </div>
                 </div>
               ) : null}
 
               {selectedOrder.status === 'payment_pending' ? (
                 <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
                   <p className="text-sm font-medium text-amber-200">Payment details</p>
+                  <p className="mt-1 text-xs text-amber-100/70">
+                    Prefilled from Settings — edit below and click send to resend to patient.
+                  </p>
                   {selectedOrder.paymentDetailsSentAt ? (
                     <p className="mt-1 text-xs text-amber-100/70">
                       Last sent: {new Date(selectedOrder.paymentDetailsSentAt).toLocaleString()}
@@ -230,15 +243,21 @@ export function OrdersPage() {
                     <input
                       value={paymentLinkUrl}
                       onChange={(e) => setPaymentLinkUrl(e.target.value)}
-                      placeholder="Payment link (optional override)"
+                      placeholder={pharmacy?.paymentLinkUrl || 'Payment link'}
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                     />
                     <input
                       value={paymentQrImageUrl}
                       onChange={(e) => setPaymentQrImageUrl(e.target.value)}
-                      placeholder="QR image URL (optional override)"
+                      placeholder={pharmacy?.paymentQrImageUrl || 'QR image URL'}
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                     />
+                    <Link
+                      to="/dashboard/settings"
+                      className="inline-block text-xs text-violet-400 hover:text-violet-300"
+                    >
+                      Change default payment link / QR in Settings →
+                    </Link>
                     <button
                       type="button"
                       disabled={sendingPayment}
@@ -297,15 +316,18 @@ export function OrdersPage() {
                       <input
                         value={paymentLinkUrl}
                         onChange={(e) => setPaymentLinkUrl(e.target.value)}
-                        placeholder="Payment link (uses Settings default if empty)"
+                        placeholder={pharmacy?.paymentLinkUrl || 'Payment link (from Settings)'}
                         className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                       />
                       <input
                         value={paymentQrImageUrl}
                         onChange={(e) => setPaymentQrImageUrl(e.target.value)}
-                        placeholder="QR image URL (optional — auto-generated from link)"
+                        placeholder={pharmacy?.paymentQrImageUrl || 'QR image (from Settings)'}
                         className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                       />
+                      <p className="text-xs text-zinc-500">
+                        Moving to Payment Pending will auto-send link & QR to patient on WhatsApp.
+                      </p>
                     </>
                   ) : null}
 

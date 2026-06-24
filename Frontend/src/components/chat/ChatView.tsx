@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Send, UserRound } from 'lucide-react';
+import { toast } from 'sonner';
 import { createMessage, getMessages } from '../../api/messages';
 import { ApiClientError } from '../../api/client';
 import { usePharmacy } from '../../context/PharmacyContext';
 import type { Conversation, Message } from '../../types';
 import { formatTime, getPatientFromConversation } from '../../utils/format';
 import { MessageBubble } from './MessageBubble';
+import { SimulatePatientDialog } from './SimulatePatientDialog';
 
 interface ChatViewProps {
   pharmacyId: string;
@@ -19,6 +21,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [simulateOpen, setSimulateOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const patient = getPatientFromConversation(conversation.patientId);
@@ -60,6 +63,14 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
       });
       setMessages((prev) => [...prev, message]);
       setDraft('');
+
+      if (pharmacy?.whatsappIntegration?.connected) {
+        if (message.whatsappMessageId) {
+          toast.success('Sent to patient on WhatsApp');
+        } else {
+          toast.warning('Saved in inbox — could not deliver on WhatsApp');
+        }
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to send message');
     } finally {
@@ -67,10 +78,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
     }
   };
 
-  const handleSimulatePatient = async () => {
-    const content = prompt('Enter a test patient message (e.g. Hi):');
-    if (!content?.trim()) return;
-
+  const handleSimulatePatient = async (content: string) => {
     setSending(true);
     setError(null);
 
@@ -78,9 +86,10 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
       const message = await createMessage(pharmacyId, {
         conversationId: conversation._id,
         senderType: 'patient',
-        content: content.trim(),
+        content,
       });
       setMessages((prev) => [...prev, message]);
+      toast.success('Test message added to inbox');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to simulate message');
     } finally {
@@ -97,6 +106,11 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
         <div>
           <h2 className="font-semibold">{patient.name}</h2>
           <p className="text-sm text-white/80">{patient.mobile}</p>
+          {pharmacy?.whatsappIntegration?.connected ? (
+            <p className="mt-0.5 text-xs text-emerald-200">WhatsApp connected · webhook active</p>
+          ) : (
+            <p className="mt-0.5 text-xs text-amber-200">WhatsApp not fully connected</p>
+          )}
         </div>
       </header>
 
@@ -143,7 +157,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={handleSimulatePatient}
+            onClick={() => setSimulateOpen(true)}
             disabled={sending}
             className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
           >
@@ -171,6 +185,13 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
           </button>
         </div>
       </div>
+
+      <SimulatePatientDialog
+        open={simulateOpen}
+        onOpenChange={setSimulateOpen}
+        onSubmit={handleSimulatePatient}
+        sending={sending}
+      />
     </div>
   );
 }

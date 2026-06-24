@@ -1,5 +1,6 @@
 import type { SenderType } from '../../types';
-import { isImagePath, isPdfPath, isResolvableMediaPath, resolveMediaUrl } from '../../utils/media';
+import { isResolvableMediaPath } from '../../utils/media';
+import { MediaAttachment } from './MediaAttachment';
 
 interface MessageBubbleProps {
   content: string;
@@ -16,43 +17,19 @@ const senderLabels: Record<SenderType, string> = {
 
 export function MessageBubble({ content, senderType, time, messageType = 'text' }: MessageBubbleProps) {
   const isOutgoing = senderType === 'pharmacist' || senderType === 'bot';
-  const mediaUrl = isResolvableMediaPath(content) ? resolveMediaUrl(content) : null;
+  const hasMedia = (messageType === 'image' || messageType === 'document') && isResolvableMediaPath(content);
 
   const renderBody = () => {
-    if (messageType === 'image' && mediaUrl) {
+    if (hasMedia) {
       return (
-        <img
-          src={mediaUrl}
-          alt="Shared image"
-          className="max-h-64 max-w-full rounded-lg object-contain"
+        <MediaAttachment
+          content={content}
+          alt={messageType === 'document' ? 'Prescription document' : 'Shared image'}
         />
       );
     }
 
-    if (messageType === 'document' && mediaUrl) {
-      if (isImagePath(content)) {
-        return (
-          <img
-            src={mediaUrl}
-            alt="Prescription"
-            className="max-h-64 max-w-full rounded-lg object-contain"
-          />
-        );
-      }
-
-      return (
-        <a
-          href={mediaUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm underline"
-        >
-          {isPdfPath(content) ? 'View prescription (PDF)' : 'View document'}
-        </a>
-      );
-    }
-
-    if ((messageType === 'image' || messageType === 'document') && !mediaUrl) {
+    if ((messageType === 'image' || messageType === 'document') && !isResolvableMediaPath(content)) {
       return (
         <p className="text-sm italic text-slate-500">
           {content || 'Media unavailable — file may not have been saved.'}

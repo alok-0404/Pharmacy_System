@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import path from 'path';
 import { ApiError } from '../../utils/ApiError';
 import { HTTP_STATUS } from '../../config/constants';
 import { logger } from '../../utils/logger';
@@ -33,10 +34,21 @@ import {
 
 const MIME_EXTENSION: Record<string, string> = {
   'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+  'image/heic': '.heic',
+  'image/heif': '.heif',
   'application/pdf': '.pdf',
+  'application/octet-stream': '.bin',
 };
+
+/** Pause before service menu so welcome image/text arrive first on WhatsApp. */
+const GREETING_MENU_DELAY_MS = 2500;
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export class WhatsAppService {
   verifyWebhook(mode: string, token: string, challenge: string): string {
@@ -139,12 +151,24 @@ export class WhatsAppService {
     return parsed;
   }
 
-  private extensionForMime(mimeType?: string): string {
-    if (!mimeType) {
-      return '.bin';
+  private extensionForMime(mimeType?: string, fileName?: string): string {
+    if (mimeType && MIME_EXTENSION[mimeType]) {
+      return MIME_EXTENSION[mimeType];
     }
 
-    return MIME_EXTENSION[mimeType] ?? '.bin';
+    if (fileName) {
+      const ext = path.extname(fileName).toLowerCase();
+
+      if (ext) {
+        return ext;
+      }
+    }
+
+    if (mimeType?.startsWith('image/')) {
+      return '.jpg';
+    }
+
+    return '.bin';
   }
 
   async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
@@ -262,10 +286,13 @@ export class WhatsAppService {
         fileUrl = await saveBufferToUploads(
           `prescriptions/${pharmacyId}`,
           media.buffer,
-          this.extensionForMime(media.mimeType ?? incoming.mimeType),
+          this.extensionForMime(media.mimeType ?? incoming.mimeType, incoming.fileName),
         );
         messageType =
-          incoming.messageType === 'image' ? MessageType.IMAGE : MessageType.DOCUMENT;
+          incoming.messageType === 'image' ||
+          (media.mimeType ?? incoming.mimeType)?.startsWith('image/')
+            ? MessageType.IMAGE
+            : MessageType.DOCUMENT;
         content = fileUrl;
       } catch (error) {
         logger.error('Failed to download prescription media', {
@@ -365,21 +392,25 @@ export class WhatsAppService {
       return;
     }
 
-    const isGreetingImage =
-      botResponse.intent === Intent.GREETING && Boolean(botResponse.imageUrl);
+    if (botResponse.intent === Intent.GREETING) {
+      await this.sendGreetingSequence({
+        pharmacyId,
+        phoneNumberId,
+        senderMobile,
+        conversationId,
+        patientId,
+        welcomeText: botResponse.reply,
+        imageUrl: botResponse.imageUrl,
+        sendServiceMenu: botResponse.sendServiceMenu,
+      });
+      return;
+    }
 
-    const sendResult = isGreetingImage
-      ? await this.sendImageMessage({
-          phoneNumberId,
-          to: senderMobile,
-          imageUrl: resolvePublicUrl(botResponse.imageUrl!),
-          caption: botResponse.reply,
-        })
-      : await this.sendMessage({
-          phoneNumberId,
-          to: senderMobile,
-          message: botResponse.reply,
-        });
+    const sendResult = await this.sendMessage({
+      phoneNumberId,
+      to: senderMobile,
+      message: botResponse.reply,
+    });
 
     try {
       await Message.create({
@@ -387,8 +418,8 @@ export class WhatsAppService {
         conversationId,
         patientId,
         senderType: SenderType.BOT,
-        content: isGreetingImage ? botResponse.imageUrl! : botResponse.reply,
-        messageType: isGreetingImage ? MessageType.IMAGE : MessageType.TEXT,
+        content: botResponse.reply,
+        messageType: MessageType.TEXT,
         whatsappMessageId: sendResult.messages?.[0]?.id,
         status: MessageStatus.SENT,
       });
@@ -415,6 +446,94 @@ export class WhatsAppService {
       to: senderMobile,
       intent: botResponse.intent,
       whatsappMessageId: sendResult.messages?.[0]?.id,
+    });
+  }
+
+  private async sendGreetingSequence(params: {
+    pharmacyId: string;
+    phoneNumberId: string;
+    senderMobile: string;
+    conversationId: string;
+    patientId: string;
+    welcomeText: string;
+    imageUrl?: string;
+    sendServiceMenu: boolean;
+  }): Promise<void> {
+    const {
+      pharmacyId,
+      phoneNumberId,
+      senderMobile,
+      conversationId,
+      patientId,
+      welcomeText,
+      imageUrl,
+      sendServiceMenu,
+    } = params;
+
+    const textResult = await this.sendMessage({
+      phoneNumberId,
+      to: senderMobile,
+      message: welcomeText,
+    });
+
+    try {
+      await Message.create({
+        pharmacyId,
+        conversationId,
+        patientId,
+        senderType: SenderType.BOT,
+        content: welcomeText,
+        messageType: MessageType.TEXT,
+        whatsappMessageId: textResult.messages?.[0]?.id,
+        status: MessageStatus.SENT,
+      });
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+
+    if (imageUrl) {
+      const imageResult = await this.sendImageMessage({
+        phoneNumberId,
+        to: senderMobile,
+        imageUrl: resolvePublicUrl(imageUrl),
+      });
+
+      try {
+        await Message.create({
+          pharmacyId,
+          conversationId,
+          patientId,
+          senderType: SenderType.BOT,
+          content: imageUrl,
+          messageType: MessageType.IMAGE,
+          whatsappMessageId: imageResult.messages?.[0]?.id,
+          status: MessageStatus.SENT,
+        });
+      } catch (error) {
+        return handleMongooseError(error);
+      }
+    }
+
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastMessageAt: new Date(),
+    });
+
+    if (sendServiceMenu) {
+      await pause(GREETING_MENU_DELAY_MS);
+      await this.sendServiceMenu({
+        pharmacyId,
+        phoneNumberId,
+        senderMobile,
+        conversationId,
+        patientId,
+      });
+    }
+
+    logger.info('Greeting sequence sent via WhatsApp', {
+      pharmacyId,
+      to: senderMobile,
+      hasImage: Boolean(imageUrl),
+      sendServiceMenu,
     });
   }
 

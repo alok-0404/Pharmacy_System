@@ -21,8 +21,14 @@ export function isResolvableMediaPath(url: string): boolean {
   return url.startsWith('/') || /^https?:\/\//i.test(url);
 }
 
+export function getFileNameFromPath(url: string): string {
+  const path = url.split('?')[0];
+  const segment = path.split('/').pop();
+  return segment || 'prescription';
+}
+
 export function isImagePath(url: string): boolean {
-  return /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(url);
+  return /\.(png|jpe?g|webp|gif|bmp|heic|heif)(\?.*)?$/i.test(url);
 }
 
 export function isPdfPath(url: string): boolean {

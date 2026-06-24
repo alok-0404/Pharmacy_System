@@ -1,0 +1,45 @@
+
+> pharmacy-communication-backend@1.0.0 dev
+> tsx watch src/server.ts
+
+node:internal/modules/cjs/loader:1207
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module 'qrcode'
+Require stack:
+- /home/runner/workspace/Backend/src/modules/notification/payment-notification.service.ts
+- /home/runner/workspace/Backend/src/modules/order/order-status.service.ts
+- /home/runner/workspace/Backend/src/modules/order/order.service.ts
+- /home/runner/workspace/Backend/src/modules/whatsapp/whatsapp.service.ts
+- /home/runner/workspace/Backend/src/modules/message/message.service.ts
+- /home/runner/workspace/Backend/src/modules/message/message.controller.ts
+- /home/runner/workspace/Backend/src/modules/message/message.routes.ts
+- /home/runner/workspace/Backend/src/app.ts
+- /home/runner/workspace/Backend/src/server.ts
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at nextResolveSimple (/home/runner/workspace/Backend/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:1017)
+    at /home/runner/workspace/Backend/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:4388
+    at /home/runner/workspace/Backend/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:3818
+    at resolveTsPaths (/home/runner/workspace/Backend/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:770)
+    at /home/runner/workspace/Backend/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:1155
+    at T._resolveFilename (file:///home/runner/workspace/Backend/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:14889)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/home/runner/workspace/Backend/src/modules/notification/payment-notification.service.ts',
+    '/home/runner/workspace/Backend/src/modules/order/order-status.service.ts',
+    '/home/runner/workspace/Backend/src/modules/order/order.service.ts',
+    '/home/runner/workspace/Backend/src/modules/whatsapp/whatsapp.service.ts',
+    '/home/runner/workspace/Backend/src/modules/message/message.service.ts',
+    '/home/runner/workspace/Backend/src/modules/message/message.controller.ts',
+    '/home/runner/workspace/Backend/src/modules/message/message.routes.ts',
+    '/home/runner/workspace/Backend/src/app.ts',
+    '/home/runner/workspace/Backend/src/server.ts'
+  ]
+}
+
+Node.js v20.20.0
+^[[1;2C

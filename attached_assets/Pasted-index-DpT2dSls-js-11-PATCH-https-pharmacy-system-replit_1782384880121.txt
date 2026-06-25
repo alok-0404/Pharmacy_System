@@ -1,0 +1,51 @@
+index-DpT2dSls.js:11 
+ PATCH https://pharmacy-system.replit.app/api/v1/orders/6a3d07e…/status 400 (Bad Request)
+kr	@	index-DpT2dSls.js:11
+nf	@	index-DpT2dSls.js:55
+ee	@	index-DpT2dSls.js:55
+onClick	@	index-DpT2dSls.js:55
+yd	@	index-DpT2dSls.js:8
+(anonymous)	@	index-DpT2dSls.js:8
+fn	@	index-DpT2dSls.js:8
+wd	@	index-DpT2dSls.js:8
+up	@	index-DpT2dSls.js:9
+cp	@	index-DpT2dSls.js:9
+Explanation
+
+Understanding the problem
+The 400 (Bad Request) error indicates that the server received the PATCH request but refused to process it because the payload or parameters sent by the client are invalid.
+
+In the context of an order status update:
+
+Invalid Status Value: The body sent via JSON.stringify(t) likely contains a status string (e.g., "DELIVERED") that the backend does not recognize or allow for the current state of the order.
+Missing Fields: The API might require specific fields in the request body (e.g., { "status": "shipped" }) that are missing or malformed in the variable t.
+Schema Validation: The backend validation logic rejected the data format.
+How to verify
+Inspect the Network Tab: Open the Network tab in DevTools, click on the failed status request, and look at the Response sub-tab. Most modern APIs return a JSON object explaining why the request was bad (e.g., {"message": "Invalid status transition"}).
+Check the Payload: In the same Network tab, go to the Payload (or Request) sub-tab to see exactly what data was sent in t.
+Suggested fix
+Ensure that the data passed as the second argument to kr matches the API's expected schema. Since the code is minified, you need to find where kr is called (the stack trace points to onClick in index-DpT2dSls.js) and verify the object structure.
+
+js
+
+// Example of ensuring the payload 't' matches API expectations
+// If the API expects an object with a 'status' key:
+const newStatus = { status: 'COMPLETED' }; 
+// Call the function with the correct object structure
+await kr(`/api/v1/orders/${orderId}/status`, newStatus, token);
+
+// If you are currently passing a raw string instead of an object, 
+// the server will return a 400 because it expects JSON mapping.
+Use code snippets with caution
+
+Summary
+The 400 error means your frontend is sending data that the backend's validation logic considers incorrect. Check the Network -> Response tab in DevTools to see the specific validation error message from the server, and ensure the object passed to the PATCH request contains the correct keys and values.
+
+Data used to understand this message
+Use search instead
+AI tools may generate inaccurate info that doesn't represent Google's views. Data sent to Google may be seen by human reviewers to improve this feature. Open settings or learn more
+
+
+
+﻿
+

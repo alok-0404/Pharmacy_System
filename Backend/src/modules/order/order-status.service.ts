@@ -7,11 +7,12 @@ import {
   DeliveryType,
 } from '../../config/order.constants';
 import { IOrder, Order } from './order.model';
-import { Patient } from '../patient/patient.model';
-import { Pharmacy } from '../pharmacy/pharmacy.model';
+import { IPatient, Patient } from '../patient/patient.model';
+import { IPharmacy, Pharmacy } from '../pharmacy/pharmacy.model';
 import { isValidObjectId } from '../../utils/objectId';
 import { handleMongooseError } from '../../utils/mongooseError';
 import {
+  formatDate,
   getOrderStatusMessage,
   OrderNotificationContext,
 } from '../notification/order-notification.service';
@@ -51,14 +52,29 @@ export class OrderStatusService {
 
   private buildNotificationContext(
     order: IOrder,
-    pharmacyName: string,
+    pharmacy: IPharmacy,
+    patient: IPatient,
     input?: UpdateOrderStatusInput,
   ): OrderNotificationContext {
+    const refillDueAt = input?.refillDueAt ?? order.refillDueAt;
+    const daysRemaining = refillDueAt
+      ? Math.max(
+          0,
+          Math.ceil((refillDueAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        )
+      : undefined;
+
     return {
-      pharmacyName,
+      pharmacyName: pharmacy.name,
       orderId: String(order._id),
       rejectionReason: input?.rejectionReason ?? order.rejectionReason,
       paymentAmount: input?.paymentAmount ?? order.paymentAmount,
+      storeAddress: pharmacy.storeAddress,
+      storeHours: pharmacy.storeHours,
+      patientName: patient.name,
+      paymentDate: formatDate(new Date()),
+      lastOrderDate: order.createdAt ? formatDate(order.createdAt) : undefined,
+      daysRemaining,
     };
   }
 
@@ -79,7 +95,7 @@ export class OrderStatusService {
       return;
     }
 
-    const context = this.buildNotificationContext(order, pharmacy.name, input);
+    const context = this.buildNotificationContext(order, pharmacy, patient, input);
     const messageText = getOrderStatusMessage(status, context);
     const templateName = getMetaTemplateName(status);
 

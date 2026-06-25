@@ -1,0 +1,1 @@
+- [WhatsApp template variable mapping](whatsapp-template-params.md) — buildMetaTemplateBodyParams must match each approved template's exact param count/order ({{1}}=pharmacy, refill={{1}}=patient); else Meta 132000/132001 → silent fallback to text.

@@ -23,6 +23,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [simulateOpen, setSimulateOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const patient = getPatientFromConversation(conversation.patientId);
 
@@ -45,7 +46,10 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
   }, [pharmacyId, conversation._id]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = async () => {
@@ -98,8 +102,8 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#e5ddd5]">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-brand-700 px-5 py-4 text-white shadow-sm">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#e5ddd5]">
+      <header className="shrink-0 flex items-center gap-3 border-b border-slate-200 bg-brand-700 px-5 py-4 text-white shadow-sm">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
           <UserRound size={20} />
         </div>
@@ -114,7 +118,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={messagesContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
           <div className="flex h-full items-center justify-center text-slate-500">
             <Loader2 className="animate-spin" size={24} />
@@ -147,7 +151,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
         </div>
       ) : null}
 
-      <div className="border-t border-slate-200 bg-white px-4 py-3">
+      <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3">
         {!pharmacy?.whatsappIntegration?.connected ? (
           <p className="mb-2 text-xs text-amber-700">
             WhatsApp delivery pending — messages save to database only until integration is
@@ -173,7 +177,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
               }
             }}
             placeholder="Type a reply as pharmacist..."
-            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           />
           <button
             type="button"

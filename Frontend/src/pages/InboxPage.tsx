@@ -44,8 +44,8 @@ export function InboxPage() {
   }, [pharmacyId]);
 
   return (
-    <div className="flex h-full bg-zinc-950">
-      <section className="flex w-96 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/50">
+    <div className="flex h-full min-h-0 overflow-hidden bg-zinc-950">
+      <section className="flex h-full min-h-0 w-96 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/50">
         <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-4">
           <h1 className="text-lg font-semibold text-white">Inbox</h1>
           <button
@@ -65,15 +65,17 @@ export function InboxPage() {
         ) : error ? (
           <div className="p-4 text-sm text-red-600">{error}</div>
         ) : (
-          <ConversationList
-            conversations={conversations}
-            selectedId={selected?._id ?? null}
-            onSelect={setSelected}
-          />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ConversationList
+              conversations={conversations}
+              selectedId={selected?._id ?? null}
+              onSelect={setSelected}
+            />
+          </div>
         )}
       </section>
 
-      <section className="min-w-0 flex-1">
+      <section className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
         {selected && pharmacyId ? (
           <ChatView pharmacyId={pharmacyId} conversation={selected} />
         ) : (

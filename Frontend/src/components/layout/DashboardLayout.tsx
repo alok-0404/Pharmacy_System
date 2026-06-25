@@ -30,7 +30,7 @@ export function DashboardLayout() {
   };
 
   return (
-    <div className="flex h-full bg-zinc-950">
+    <div className="flex h-dvh overflow-hidden bg-zinc-950">
       <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/50">
         <div className="border-b border-zinc-800 px-5 py-5">
           <div className="flex items-center gap-2">
@@ -77,7 +77,7 @@ export function DashboardLayout() {
         </button>
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
         <Outlet />
       </main>
     </div>

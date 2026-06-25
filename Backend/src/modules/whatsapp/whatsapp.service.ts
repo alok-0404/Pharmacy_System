@@ -29,6 +29,7 @@ import {
   MetaWebhookPayload,
   ParsedIncomingMessage,
   SendImageParams,
+  SendTemplateParams,
   SendMessageParams,
 } from './whatsapp.types';
 
@@ -651,6 +652,65 @@ export class WhatsAppService {
     return result;
   }
 
+  async sendTemplateMessage(params: SendTemplateParams): Promise<MetaSendMessageResponse> {
+    const url = `https://graph.facebook.com/${env.META_API_VERSION}/${params.phoneNumberId}/messages`;
+
+    const body = {
+      messaging_product: 'whatsapp',
+      to: params.to,
+      type: 'template',
+      template: {
+        name: params.templateName,
+        language: { code: params.languageCode },
+        components: [
+          {
+            type: 'body',
+            parameters: params.bodyParameters.map((text) => ({
+              type: 'text',
+              text,
+            })),
+          },
+        ],
+      },
+    };
+
+    logger.info('Sending WhatsApp template message', {
+      phoneNumberId: params.phoneNumberId,
+      to: params.to,
+      templateName: params.templateName,
+    });
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.META_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      logger.error('WhatsApp API template send failed', {
+        status: response.status,
+        body: errorBody,
+        templateName: params.templateName,
+        to: params.to,
+      });
+      throw new ApiError(HTTP_STATUS.BAD_GATEWAY, 'Failed to send WhatsApp template message');
+    }
+
+    const result = (await response.json()) as MetaSendMessageResponse;
+
+    logger.info('WhatsApp template sent successfully', {
+      to: params.to,
+      templateName: params.templateName,
+      whatsappMessageId: result.messages?.[0]?.id,
+    });
+
+    return result;
+  }
+
   async sendImageMessage(params: SendImageParams): Promise<MetaSendMessageResponse> {
     const url = `https://graph.facebook.com/${env.META_API_VERSION}/${params.phoneNumberId}/messages`;
 
@@ -707,6 +767,35 @@ export class WhatsAppService {
       phoneNumberId: pharmacy.whatsappPhoneNumberId,
       to,
       message,
+    });
+  }
+
+  async sendTemplateForPharmacy(
+    pharmacyId: string,
+    to: string,
+    templateName: string,
+    bodyParameters: string[],
+  ): Promise<MetaSendMessageResponse> {
+    const pharmacy = await Pharmacy.findById(pharmacyId);
+
+    if (!pharmacy) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Pharmacy not found');
+    }
+
+    if (!pharmacy.isActive) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Pharmacy is not active');
+    }
+
+    if (!isServerWhatsappConfigured()) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'WhatsApp is not configured on the server');
+    }
+
+    return this.sendTemplateMessage({
+      phoneNumberId: pharmacy.whatsappPhoneNumberId,
+      to,
+      templateName,
+      languageCode: env.META_TEMPLATE_LANGUAGE,
+      bodyParameters,
     });
   }
 

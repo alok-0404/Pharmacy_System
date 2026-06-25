@@ -20,6 +20,11 @@ import { Message, MessageStatus, MessageType, SenderType } from '../message/mess
 import { Conversation } from '../conversation/conversation.model';
 import { logger } from '../../utils/logger';
 import { paymentNotificationService } from '../notification/payment-notification.service';
+import { env } from '../../config/env';
+import {
+  buildMetaTemplateBodyParams,
+  getMetaTemplateName,
+} from '../../config/whatsapp-templates.config';
 
 export interface UpdateOrderStatusInput {
   status: OrderStatus;
@@ -76,13 +81,44 @@ export class OrderStatusService {
 
     const context = this.buildNotificationContext(order, pharmacy.name, input);
     const messageText = getOrderStatusMessage(status, context);
+    const templateName = getMetaTemplateName(status);
 
     try {
-      const sendResult = await whatsappService.sendMessageForPharmacy(
-        String(order.pharmacyId),
-        patient.mobile,
-        messageText,
-      );
+      let sendResult;
+
+      if (env.USE_META_TEMPLATES && templateName) {
+        try {
+          sendResult = await whatsappService.sendTemplateForPharmacy(
+            String(order.pharmacyId),
+            patient.mobile,
+            templateName,
+            buildMetaTemplateBodyParams(status, context),
+          );
+          logger.info('Order notification sent via Meta template', {
+            orderId: order._id,
+            status,
+            templateName,
+          });
+        } catch (templateError) {
+          logger.warn('Meta template failed, falling back to session text', {
+            orderId: order._id,
+            status,
+            templateName,
+            error: templateError,
+          });
+          sendResult = await whatsappService.sendMessageForPharmacy(
+            String(order.pharmacyId),
+            patient.mobile,
+            messageText,
+          );
+        }
+      } else {
+        sendResult = await whatsappService.sendMessageForPharmacy(
+          String(order.pharmacyId),
+          patient.mobile,
+          messageText,
+        );
+      }
 
       if (order.conversationId) {
         await Message.create({

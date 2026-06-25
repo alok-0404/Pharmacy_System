@@ -69,6 +69,14 @@ export interface SendImageParams {
   caption?: string;
 }
 
+export interface SendTemplateParams {
+  phoneNumberId: string;
+  to: string;
+  templateName: string;
+  languageCode: string;
+  bodyParameters: string[];
+}
+
 export interface MetaSendMessageResponse {
   messaging_product: string;
   contacts: Array<{ input: string; wa_id: string }>;

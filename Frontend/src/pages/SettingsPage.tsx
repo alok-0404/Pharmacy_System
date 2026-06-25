@@ -343,6 +343,11 @@ export function SettingsPage() {
               <p className="mt-2 text-sm text-emerald-100/80">
                 WhatsApp is connected. Bot service menu, FAQs, and order updates are active.
               </p>
+              <p className="mt-2 text-xs text-emerald-100/60">
+                Meta templates: set <code className="rounded bg-black/20 px-1">USE_META_TEMPLATES=true</code>{' '}
+                in server env after Meta approves your templates (order_verified, order_accepted, etc.).
+                Until then, order updates use session text messages from code.
+              </p>
             </div>
           ) : (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5">

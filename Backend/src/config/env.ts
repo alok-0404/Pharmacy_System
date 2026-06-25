@@ -16,6 +16,11 @@ const envSchema = z.object({
   META_VERIFY_TOKEN: z.string().min(1, 'META_VERIFY_TOKEN is required'),
   META_API_VERSION: z.string().default('v21.0'),
   APP_PUBLIC_URL: z.string().url().default('http://localhost:5000'),
+  USE_META_TEMPLATES: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  META_TEMPLATE_LANGUAGE: z.string().default('en'),
 });
 
 const parsed = envSchema.safeParse(process.env);

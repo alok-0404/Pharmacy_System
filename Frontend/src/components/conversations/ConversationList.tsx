@@ -15,16 +15,16 @@ export function ConversationList({
 }: ConversationListProps) {
   if (conversations.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center text-slate-500">
-        <MessageSquare className="mb-3 text-slate-300" size={40} />
-        <p className="font-medium">No conversations yet</p>
-        <p className="mt-1 text-sm">Add a patient and start a chat from the Patients page.</p>
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center text-zinc-500">
+        <MessageSquare className="mb-3 text-zinc-600" size={40} />
+        <p className="font-medium text-zinc-300">No conversations yet</p>
+        <p className="mt-1 text-sm">Patients appear here when they message on WhatsApp.</p>
       </div>
     );
   }
 
   return (
-    <div className="divide-y divide-slate-100 overflow-y-auto">
+    <div className="divide-y divide-zinc-800">
       {conversations.map((conversation) => {
         const patient = getPatientFromConversation(conversation.patientId);
         const isSelected = conversation._id === selectedId;
@@ -34,26 +34,26 @@ export function ConversationList({
             key={conversation._id}
             type="button"
             onClick={() => onSelect(conversation)}
-            className={`flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50 ${
-              isSelected ? 'bg-brand-50' : ''
+            className={`flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-zinc-800/80 ${
+              isSelected ? 'bg-violet-500/15' : ''
             }`}
           >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-sm font-semibold text-violet-300">
               {patient.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="truncate font-medium text-slate-900">{patient.name}</p>
-                <span className="shrink-0 text-xs text-slate-400">
+                <p className="truncate font-medium text-white">{patient.name}</p>
+                <span className="shrink-0 text-xs text-zinc-500">
                   {formatRelative(conversation.lastMessageAt)}
                 </span>
               </div>
-              <p className="truncate text-sm text-slate-500">{patient.mobile}</p>
+              <p className="truncate text-sm text-zinc-400">{patient.mobile}</p>
               <span
                 className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
                   conversation.status === 'open'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-slate-100 text-slate-600'
+                    ? 'bg-emerald-500/15 text-emerald-400'
+                    : 'bg-zinc-800 text-zinc-400'
                 }`}
               >
                 {conversation.status}

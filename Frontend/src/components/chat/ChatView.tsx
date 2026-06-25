@@ -103,17 +103,19 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#e5ddd5]">
-      <header className="shrink-0 flex items-center gap-3 border-b border-slate-200 bg-brand-700 px-5 py-4 text-white shadow-sm">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
-          <UserRound size={20} />
+      <header className="flex shrink-0 items-center gap-3 border-b border-violet-900/50 bg-violet-800 px-5 py-4 text-white shadow-sm">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+          <UserRound size={20} className="text-white" />
         </div>
         <div>
-          <h2 className="font-semibold">{patient.name}</h2>
-          <p className="text-sm text-white/80">{patient.mobile}</p>
+          <h2 className="font-semibold text-white">{patient.name}</h2>
+          <p className="text-sm text-violet-100">{patient.mobile}</p>
           {pharmacy?.whatsappIntegration?.connected ? (
-            <p className="mt-0.5 text-xs text-emerald-200">WhatsApp connected · webhook active</p>
+            <p className="mt-0.5 text-xs font-medium text-emerald-300">
+              WhatsApp connected · webhook active
+            </p>
           ) : (
-            <p className="mt-0.5 text-xs text-amber-200">WhatsApp not fully connected</p>
+            <p className="mt-0.5 text-xs font-medium text-amber-300">WhatsApp not fully connected</p>
           )}
         </div>
       </header>

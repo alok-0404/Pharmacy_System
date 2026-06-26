@@ -18,6 +18,8 @@ export interface IPharmacy extends Document, ISoftDelete, ITimestamps, SoftDelet
   storeAddress?: string;
   storeHours?: string;
   storeMapUrl?: string;
+  storeLatitude?: number;
+  storeLongitude?: number;
   isActive: boolean;
 }
 
@@ -34,6 +36,8 @@ const pharmacySchema = new Schema<IPharmacy>(
     storeAddress: { type: String, trim: true },
     storeHours: { type: String, trim: true },
     storeMapUrl: { type: String, trim: true },
+    storeLatitude: { type: Number, min: -90, max: 90 },
+    storeLongitude: { type: Number, min: -180, max: 180 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },

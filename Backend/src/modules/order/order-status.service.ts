@@ -171,6 +171,10 @@ export class OrderStatusService {
     order: IOrder,
     input: UpdateOrderStatusInput,
   ): Promise<IOrder> {
+    if (order.status === input.status) {
+      return order;
+    }
+
     this.assertTransitionAllowed(order.status, input.status);
 
     const now = new Date();

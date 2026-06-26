@@ -17,7 +17,9 @@ import {
 import { conversationService } from '../conversation/conversation.service';
 import { orderService } from '../order/order.service';
 import { botFlowService } from '../../bot/bot-flow.service';
+import { formatHandoffAck, shouldExitHandoff } from '../../bot/handoff';
 import { Intent } from '../../bot/intent-detector';
+import type { StoreLocationPin } from '../../bot/store-location';
 import { DEFAULT_GREETING_IMAGE_URL } from '../../config/greeting.constants';
 import { SERVICE_MENU_BODY, getServiceOptionLabel, SERVICE_MENU_ROWS } from '../../bot/service-menu';
 import { sendInteractiveListMessage } from './whatsapp.interactive';
@@ -349,6 +351,25 @@ export class WhatsAppService {
       return;
     }
 
+    const handoffActive = Boolean(conversation.handoffActive);
+    const exitHandoff = handoffActive && shouldExitHandoff(incoming.messageText, incoming.buttonId);
+
+    if (exitHandoff) {
+      await conversationService.setHandoffActive(String(conversation._id), false);
+    }
+
+    if (handoffActive && !exitHandoff) {
+      await this.sendHandoffAck({
+        pharmacyId,
+        pharmacyName: pharmacy.name,
+        phoneNumberId: incoming.phoneNumberId,
+        senderMobile: incoming.senderMobile,
+        conversationId: String(conversation._id),
+        patientId: String(patient._id),
+      });
+      return;
+    }
+
     const botResponse = await botFlowService.process({
       message: incoming.messageText,
       buttonId: incoming.buttonId,
@@ -360,8 +381,14 @@ export class WhatsAppService {
         storeAddress: pharmacy.storeAddress,
         storeHours: pharmacy.storeHours,
         storeMapUrl: pharmacy.storeMapUrl,
+        storeLatitude: pharmacy.storeLatitude,
+        storeLongitude: pharmacy.storeLongitude,
       },
     });
+
+    if (botResponse.intent === Intent.TALK_PHARMACIST) {
+      await conversationService.setHandoffActive(String(conversation._id), true);
+    }
 
     await this.sendBotReply({
       pharmacyId,
@@ -384,6 +411,7 @@ export class WhatsAppService {
       reply: string;
       imageUrl?: string;
       sendServiceMenu: boolean;
+      storeLocation?: StoreLocationPin;
     };
   }): Promise<void> {
     const { pharmacyId, phoneNumberId, senderMobile, conversationId, patientId, botResponse } =
@@ -442,11 +470,113 @@ export class WhatsAppService {
       });
     }
 
+    if (botResponse.storeLocation) {
+      await this.sendStoreLocationPin({
+        pharmacyId,
+        phoneNumberId,
+        senderMobile,
+        conversationId,
+        patientId,
+        location: botResponse.storeLocation,
+      });
+    }
+
     logger.info('Bot reply sent via WhatsApp', {
       pharmacyId,
       to: senderMobile,
       intent: botResponse.intent,
       whatsappMessageId: sendResult.messages?.[0]?.id,
+    });
+  }
+
+  private async sendStoreLocationPin(params: {
+    pharmacyId: string;
+    phoneNumberId: string;
+    senderMobile: string;
+    conversationId: string;
+    patientId: string;
+    location: StoreLocationPin;
+  }): Promise<void> {
+    const { pharmacyId, phoneNumberId, senderMobile, conversationId, patientId, location } =
+      params;
+
+    if (!isServerWhatsappConfigured()) {
+      return;
+    }
+
+    const sendResult = await this.sendLocationMessage({
+      phoneNumberId,
+      to: senderMobile,
+      location,
+    });
+
+    const inboxLabel = `📍 Location: ${location.name} (${location.latitude}, ${location.longitude})`;
+
+    try {
+      await Message.create({
+        pharmacyId,
+        conversationId,
+        patientId,
+        senderType: SenderType.BOT,
+        content: inboxLabel,
+        messageType: MessageType.TEXT,
+        whatsappMessageId: sendResult.messages?.[0]?.id,
+        status: MessageStatus.SENT,
+      });
+
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastMessageAt: new Date(),
+      });
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+  }
+
+  private async sendHandoffAck(params: {
+    pharmacyId: string;
+    pharmacyName: string;
+    phoneNumberId: string;
+    senderMobile: string;
+    conversationId: string;
+    patientId: string;
+  }): Promise<void> {
+    const { pharmacyId, pharmacyName, phoneNumberId, senderMobile, conversationId, patientId } =
+      params;
+
+    if (!isServerWhatsappConfigured()) {
+      return;
+    }
+
+    const reply = formatHandoffAck(pharmacyName);
+    const sendResult = await this.sendMessage({
+      phoneNumberId,
+      to: senderMobile,
+      message: reply,
+    });
+
+    try {
+      await Message.create({
+        pharmacyId,
+        conversationId,
+        patientId,
+        senderType: SenderType.BOT,
+        content: reply,
+        messageType: MessageType.TEXT,
+        whatsappMessageId: sendResult.messages?.[0]?.id,
+        status: MessageStatus.SENT,
+      });
+
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastMessageAt: new Date(),
+      });
+    } catch (error) {
+      return handleMongooseError(error);
+    }
+
+    logger.info('Handoff ack sent — awaiting pharmacist reply', {
+      pharmacyId,
+      conversationId,
+      to: senderMobile,
     });
   }
 
@@ -608,6 +738,45 @@ export class WhatsAppService {
     }
 
     return (await response.json()) as MetaSendMessageResponse;
+  }
+
+  async sendLocationMessage(params: {
+    phoneNumberId: string;
+    to: string;
+    location: StoreLocationPin;
+  }): Promise<MetaSendMessageResponse> {
+    const { phoneNumberId, to, location } = params;
+
+    logger.info('Sending WhatsApp location pin', {
+      phoneNumberId,
+      to,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
+
+    const locationPayload: Record<string, unknown> = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      name: location.name,
+    };
+
+    if (location.address?.trim()) {
+      locationPayload.address = location.address.trim();
+    }
+
+    const result = await this.sendRawMessage(phoneNumberId, {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'location',
+      location: locationPayload,
+    });
+
+    logger.info('WhatsApp location pin sent', {
+      to,
+      whatsappMessageId: result.messages?.[0]?.id,
+    });
+
+    return result;
   }
 
   async sendMessage(params: SendMessageParams): Promise<MetaSendMessageResponse> {

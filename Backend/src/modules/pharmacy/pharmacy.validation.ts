@@ -28,6 +28,8 @@ export const updateStoreSettingsSchema = z.object({
   storeAddress: z.string().trim().optional(),
   storeHours: z.string().trim().optional(),
   storeMapUrl: z.string().url('Invalid map URL').or(z.literal('')).optional(),
+  storeLatitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+  storeLongitude: z.coerce.number().min(-180).max(180).optional().nullable(),
   greetingImageUrl: z
     .string()
     .url('Invalid greeting image URL')

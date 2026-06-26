@@ -19,6 +19,8 @@ export function SettingsPage() {
   const [storeAddress, setStoreAddress] = useState('');
   const [storeHours, setStoreHours] = useState('');
   const [storeMapUrl, setStoreMapUrl] = useState('');
+  const [storeLatitude, setStoreLatitude] = useState('');
+  const [storeLongitude, setStoreLongitude] = useState('');
   const [greetingImageUrl, setGreetingImageUrl] = useState('');
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [faqForm, setFaqForm] = useState({ question: '', answer: '', keywords: '' });
@@ -60,6 +62,12 @@ export function SettingsPage() {
       setStoreAddress(pharmacy.storeAddress ?? '');
       setStoreHours(pharmacy.storeHours ?? '');
       setStoreMapUrl(pharmacy.storeMapUrl ?? '');
+      setStoreLatitude(
+        pharmacy.storeLatitude != null ? String(pharmacy.storeLatitude) : '',
+      );
+      setStoreLongitude(
+        pharmacy.storeLongitude != null ? String(pharmacy.storeLongitude) : '',
+      );
       setGreetingImageUrl(pharmacy.greetingImageUrl ?? '/uploads/greeting/ayudha-welcome.png');
     }
   }, [pharmacy]);
@@ -112,11 +120,34 @@ export function SettingsPage() {
     e.preventDefault();
     setSaving(true);
 
+    const latText = storeLatitude.trim();
+    const lngText = storeLongitude.trim();
+
+    if (latText && Number.isNaN(Number(latText))) {
+      toast.error('Latitude must be a valid number');
+      setSaving(false);
+      return;
+    }
+
+    if (lngText && Number.isNaN(Number(lngText))) {
+      toast.error('Longitude must be a valid number');
+      setSaving(false);
+      return;
+    }
+
+    if ((latText && !lngText) || (!latText && lngText)) {
+      toast.error('Enter both latitude and longitude for the map pin');
+      setSaving(false);
+      return;
+    }
+
     try {
       await updateStoreSettings(pharmacyId, {
         storeAddress: storeAddress.trim(),
         storeHours: storeHours.trim(),
         storeMapUrl: storeMapUrl.trim(),
+        storeLatitude: latText ? Number(latText) : null,
+        storeLongitude: lngText ? Number(lngText) : null,
         greetingImageUrl: greetingImageUrl.trim(),
       });
       await refreshPharmacy();
@@ -184,7 +215,8 @@ export function SettingsPage() {
           <GlassCard className="border-zinc-800 bg-zinc-900/50">
             <h2 className="font-semibold text-white">Store location & hours</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Shown when patients ask for address, timing, or tap Store Location in the bot menu.
+              Shown when patients tap Store Location. Add latitude/longitude to send a WhatsApp map
+              pin (always from these settings — not typed manually).
             </p>
 
             <form onSubmit={handleSaveStoreSettings} className="mt-4 space-y-4">
@@ -218,6 +250,34 @@ export function SettingsPage() {
                   value={storeMapUrl}
                   onChange={(e) => setStoreMapUrl(e.target.value)}
                 />
+                <p className="mt-1 text-xs text-zinc-600">
+                  Open your store on Google Maps → right-click the pin → copy coordinates for the
+                  fields below.
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="store-latitude">Latitude (map pin)</Label>
+                  <Input
+                    id="store-latitude"
+                    inputMode="decimal"
+                    placeholder="28.4595"
+                    className="mt-1.5 border-zinc-700 bg-zinc-950"
+                    value={storeLatitude}
+                    onChange={(e) => setStoreLatitude(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="store-longitude">Longitude (map pin)</Label>
+                  <Input
+                    id="store-longitude"
+                    inputMode="decimal"
+                    placeholder="77.0266"
+                    className="mt-1.5 border-zinc-700 bg-zinc-950"
+                    value={storeLongitude}
+                    onChange={(e) => setStoreLongitude(e.target.value)}
+                  />
+                </div>
               </div>
               <ImageUploadField
                 id="greeting-image"

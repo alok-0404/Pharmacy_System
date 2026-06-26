@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrderPaymentDetails, updateOrderStatus } from '../api/orders';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
+import { usePolling } from '../hooks/usePolling';
 import { MediaAttachment } from '../components/chat/MediaAttachment';
 import { isResolvableMediaPath, resolveMediaUrl } from '../utils/media';
 import type { Order, OrderStatus, Pharmacy, PopulatedPatient } from '../types';
+
+const ORDERS_POLL_MS = 5_000;
 
 function resolvePaymentDefaults(order: Order | null, pharmacy: Pharmacy | null) {
   return {
@@ -42,25 +45,55 @@ export function OrdersPage() {
   const [paymentLinkUrl, setPaymentLinkUrl] = useState('');
   const [paymentQrImageUrl, setPaymentQrImageUrl] = useState('');
   const [sendingPayment, setSendingPayment] = useState(false);
+  const statusUpdateInFlight = useRef(false);
 
-  const loadOrders = async () => {
-    if (!pharmacyId) return;
+  const loadOrders = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!pharmacyId) return;
 
-    setLoading(true);
-    setError(null);
+      if (!options?.silent) {
+        setLoading(true);
+        setError(null);
+      }
+
+      try {
+        setOrders(await getOrders(pharmacyId));
+      } catch (err) {
+        if (!options?.silent) {
+          setError(err instanceof ApiClientError ? err.message : 'Failed to load orders');
+        }
+      } finally {
+        if (!options?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [pharmacyId],
+  );
+
+  const refreshSelectedOrder = useCallback(async () => {
+    if (!pharmacyId || !selectedId) {
+      return null;
+    }
 
     try {
-      setOrders(await getOrders(pharmacyId));
+      const fresh = await getOrder(pharmacyId, selectedId);
+      setSelectedOrder(fresh);
+      setOrders((prev) => prev.map((order) => (order._id === fresh._id ? fresh : order)));
+      return fresh;
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load orders');
-    } finally {
-      setLoading(false);
+      setError(err instanceof ApiClientError ? err.message : 'Failed to load order');
+      return null;
     }
-  };
+  }, [pharmacyId, selectedId]);
 
   useEffect(() => {
     void loadOrders();
-  }, [pharmacyId]);
+  }, [loadOrders]);
+
+  usePolling(() => loadOrders({ silent: true }), ORDERS_POLL_MS, Boolean(pharmacyId));
+
+  usePolling(() => void refreshSelectedOrder(), ORDERS_POLL_MS, Boolean(pharmacyId && selectedId));
 
   useEffect(() => {
     if (!pharmacyId || !selectedId) {
@@ -68,12 +101,8 @@ export function OrdersPage() {
       return;
     }
 
-    void getOrder(pharmacyId, selectedId)
-      .then(setSelectedOrder)
-      .catch((err) => {
-        setError(err instanceof ApiClientError ? err.message : 'Failed to load order');
-      });
-  }, [pharmacyId, selectedId]);
+    void refreshSelectedOrder();
+  }, [pharmacyId, selectedId, refreshSelectedOrder]);
 
   const applyPaymentFields = (order: Order | null) => {
     const defaults = resolvePaymentDefaults(order, pharmacy);
@@ -93,8 +122,9 @@ export function OrdersPage() {
   }, [selectedId, pharmacy]);
 
   const handleStatusChange = async (status: OrderStatus) => {
-    if (!pharmacyId || !selectedOrder) return;
+    if (!pharmacyId || !selectedOrder || statusUpdateInFlight.current) return;
 
+    statusUpdateInFlight.current = true;
     setUpdating(true);
     setError(null);
 
@@ -122,10 +152,25 @@ export function OrdersPage() {
 
       if (status === 'payment_pending') {
         toast.success('Payment link & QR sent to patient on WhatsApp');
+      } else if (updated.status === status) {
+        toast.success(`Order marked as ${formatStatus(status)}`);
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to update order');
+      const message = err instanceof ApiClientError ? err.message : 'Failed to update order';
+
+      if (message.includes('Cannot transition')) {
+        const fresh = await refreshSelectedOrder();
+        if (fresh?.status === status) {
+          toast.info(`Order is already ${formatStatus(status)}`);
+          setError(null);
+        } else {
+          setError(`Status changed on server — now showing "${formatStatus(fresh?.status ?? selectedOrder.status)}".`);
+        }
+      } else {
+        setError(message);
+      }
     } finally {
+      statusUpdateInFlight.current = false;
       setUpdating(false);
     }
   };

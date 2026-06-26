@@ -1,13 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Send, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { createMessage, getMessages } from '../../api/messages';
 import { ApiClientError } from '../../api/client';
 import { usePharmacy } from '../../context/PharmacyContext';
+import { useChatScroll } from '../../hooks/useChatScroll';
+import { usePolling } from '../../hooks/usePolling';
 import type { Conversation, Message } from '../../types';
 import { formatTime, getPatientFromConversation } from '../../utils/format';
 import { MessageBubble } from './MessageBubble';
 import { SimulatePatientDialog } from './SimulatePatientDialog';
+
+const MESSAGES_POLL_MS = 3_000;
+
+function messagesChanged(previous: Message[], next: Message[]): boolean {
+  if (previous.length !== next.length) {
+    return true;
+  }
+
+  return previous.some((message, index) => message._id !== next[index]?._id);
+}
 
 interface ChatViewProps {
   pharmacyId: string;
@@ -24,33 +36,52 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
   const [simulateOpen, setSimulateOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const { isNearBottomRef, scrollToBottom } = useChatScroll(messagesContainerRef);
 
   const patient = getPatientFromConversation(conversation.patientId);
 
-  const loadMessages = async () => {
-    setLoading(true);
-    setError(null);
+  const loadMessages = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setLoading(true);
+        setError(null);
+      }
 
-    try {
-      const data = await getMessages(pharmacyId, conversation._id);
-      setMessages([...data].reverse());
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load messages');
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        const data = await getMessages(pharmacyId, conversation._id);
+        const ordered = [...data].reverse();
+
+        setMessages((previous) => {
+          if (!messagesChanged(previous, ordered)) {
+            return previous;
+          }
+
+          return ordered;
+        });
+      } catch (err) {
+        if (!options?.silent) {
+          setError(err instanceof ApiClientError ? err.message : 'Failed to load messages');
+        }
+      } finally {
+        if (!options?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [pharmacyId, conversation._id],
+  );
 
   useEffect(() => {
     void loadMessages();
-  }, [pharmacyId, conversation._id]);
+  }, [loadMessages]);
+
+  usePolling(() => loadMessages({ silent: true }), MESSAGES_POLL_MS, Boolean(pharmacyId));
 
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+    if (isNearBottomRef.current) {
+      scrollToBottom();
+    }
+  }, [messages, isNearBottomRef, scrollToBottom]);
 
   const handleSend = async () => {
     const content = draft.trim();
@@ -112,7 +143,7 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
           <p className="text-sm text-violet-100">{patient.mobile}</p>
           {pharmacy?.whatsappIntegration?.connected ? (
             <p className="mt-0.5 text-xs font-medium text-emerald-300">
-              WhatsApp connected · webhook active
+              WhatsApp connected · live sync every few seconds
             </p>
           ) : (
             <p className="mt-0.5 text-xs font-medium text-amber-300">WhatsApp not fully connected</p>

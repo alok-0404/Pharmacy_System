@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { getConversations } from '../api/conversations';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
+import { usePolling } from '../hooks/usePolling';
 import type { Conversation } from '../types';
 import { ConversationList } from '../components/conversations/ConversationList';
 import { ChatView } from '../components/chat/ChatView';
+
+const CONVERSATIONS_POLL_MS = 4_000;
 
 export function InboxPage() {
   const { pharmacyId } = usePharmacy();
@@ -14,34 +17,45 @@ export function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadConversations = async () => {
-    if (!pharmacyId) return;
+  const loadConversations = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!pharmacyId) return;
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await getConversations(pharmacyId);
-      setConversations(data);
-
-      if (data.length > 0) {
-        setSelected((current) => {
-          if (!current) return data[0];
-          return data.find((item) => item._id === current._id) ?? data[0];
-        });
-      } else {
-        setSelected(null);
+      if (!options?.silent) {
+        setLoading(true);
+        setError(null);
       }
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load conversations');
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      try {
+        const data = await getConversations(pharmacyId);
+        setConversations(data);
+
+        if (data.length > 0) {
+          setSelected((current) => {
+            if (!current) return data[0];
+            return data.find((item) => item._id === current._id) ?? data[0];
+          });
+        } else {
+          setSelected(null);
+        }
+      } catch (err) {
+        if (!options?.silent) {
+          setError(err instanceof ApiClientError ? err.message : 'Failed to load conversations');
+        }
+      } finally {
+        if (!options?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [pharmacyId],
+  );
 
   useEffect(() => {
     void loadConversations();
-  }, [pharmacyId]);
+  }, [loadConversations]);
+
+  usePolling(() => loadConversations({ silent: true }), CONVERSATIONS_POLL_MS, Boolean(pharmacyId));
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-zinc-950">

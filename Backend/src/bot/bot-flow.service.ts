@@ -5,6 +5,7 @@ import { orderService } from '../modules/order/order.service';
 import { faqService } from '../modules/faq/faq.service';
 import { medicineService } from '../modules/medicine/medicine.service';
 import { logger } from '../utils/logger';
+import { buildStoreLocationPin, type StoreLocationPin } from './store-location';
 
 
 
@@ -35,6 +36,8 @@ export interface BotFlowResponse {
   imageUrl?: string;
 
   sendServiceMenu: boolean;
+
+  storeLocation?: StoreLocationPin;
 
 }
 
@@ -219,6 +222,9 @@ export class BotFlowService {
       imageUrl,
 
       sendServiceMenu: Boolean(sendServiceMenu) && !repeatOrderText,
+
+      storeLocation:
+        intent === Intent.STORE_INFO ? buildStoreLocationPin(input.context) : undefined,
 
     };
 

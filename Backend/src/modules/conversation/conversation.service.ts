@@ -58,6 +58,14 @@ export class ConversationService {
       .sort({ lastMessageAt: -1, createdAt: -1 });
   }
 
+  async setHandoffActive(conversationId: string, active: boolean): Promise<void> {
+    if (!isValidObjectId(conversationId)) {
+      return;
+    }
+
+    await Conversation.findByIdAndUpdate(conversationId, { handoffActive: active });
+  }
+
   async findOrCreateOpenConversation(
     pharmacyId: string,
     patientId: string,

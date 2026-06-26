@@ -32,6 +32,8 @@ export interface UpdateStoreSettingsInput {
   storeAddress?: string;
   storeHours?: string;
   storeMapUrl?: string;
+  storeLatitude?: number | null;
+  storeLongitude?: number | null;
   greetingImageUrl?: string;
 }
 
@@ -105,6 +107,14 @@ export class PharmacyService {
 
     if (data.storeMapUrl !== undefined) {
       pharmacy.storeMapUrl = data.storeMapUrl.trim() || undefined;
+    }
+
+    if (data.storeLatitude !== undefined) {
+      pharmacy.storeLatitude = data.storeLatitude ?? undefined;
+    }
+
+    if (data.storeLongitude !== undefined) {
+      pharmacy.storeLongitude = data.storeLongitude ?? undefined;
     }
 
     if (data.greetingImageUrl !== undefined) {

@@ -23,6 +23,8 @@ export interface Pharmacy {
   storeAddress?: string;
   storeHours?: string;
   storeMapUrl?: string;
+  storeLatitude?: number;
+  storeLongitude?: number;
   isActive: boolean;
   whatsappIntegration?: WhatsappIntegrationStatus;
   createdAt?: string;
@@ -179,6 +181,8 @@ export interface StoreSettingsInput {
   storeAddress?: string;
   storeHours?: string;
   storeMapUrl?: string;
+  storeLatitude?: number | null;
+  storeLongitude?: number | null;
   greetingImageUrl?: string;
 }
 

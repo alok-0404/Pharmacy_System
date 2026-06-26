@@ -6,6 +6,7 @@ import {
   MessageType,
 } from './message.model';
 import { Conversation } from '../conversation/conversation.model';
+import { conversationService } from '../conversation/conversation.service';
 import { Patient } from '../patient/patient.model';
 import { Pharmacy } from '../pharmacy/pharmacy.model';
 import { ApiError } from '../../utils/ApiError';
@@ -113,6 +114,10 @@ export class MessageService {
         Conversation.findByIdAndUpdate(conversation._id, { lastMessageAt: now }),
         Patient.findByIdAndUpdate(conversation.patientId, { lastInteractionAt: now }),
       ]);
+
+      if (data.senderType === SenderType.PHARMACIST) {
+        await conversationService.setHandoffActive(String(conversation._id), false);
+      }
 
       return message;
     } catch (error) {

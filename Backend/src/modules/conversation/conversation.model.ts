@@ -21,6 +21,8 @@ export interface IConversation
   patientId: Types.ObjectId;
   status: ConversationStatus;
   lastMessageAt?: Date;
+  /** When true, patient messages go to inbox only; bot sends a short ack instead of catalog/FAQ logic. */
+  handoffActive?: boolean;
 }
 
 const conversationSchema = new Schema<IConversation>(
@@ -33,6 +35,7 @@ const conversationSchema = new Schema<IConversation>(
       default: ConversationStatus.OPEN,
     },
     lastMessageAt: { type: Date },
+    handoffActive: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

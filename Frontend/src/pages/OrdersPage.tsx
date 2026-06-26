@@ -48,6 +48,7 @@ export function OrdersPage() {
   const [paymentQrImageUrl, setPaymentQrImageUrl] = useState('');
   const [sendingPayment, setSendingPayment] = useState(false);
   const statusUpdateInFlight = useRef(false);
+  const paymentFormDirty = useRef(false);
 
   const loadOrders = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -109,8 +110,13 @@ export function OrdersPage() {
       return;
     }
 
-    void refreshSelectedOrder();
-  }, [pharmacyId, selectedId, refreshSelectedOrder]);
+    paymentFormDirty.current = false;
+    void refreshSelectedOrder().then((order) => {
+      if (order) {
+        applyPaymentFields(order);
+      }
+    });
+  }, [pharmacyId, selectedId]);
 
   const applyPaymentFields = (order: Order | null) => {
     const defaults = resolvePaymentDefaults(order, pharmacy);
@@ -120,14 +126,12 @@ export function OrdersPage() {
   };
 
   useEffect(() => {
-    applyPaymentFields(selectedOrder);
-  }, [selectedOrder, pharmacy?.paymentLinkUrl, pharmacy?.paymentQrImageUrl]);
-
-  useEffect(() => {
-    if (selectedId && pharmacy) {
-      applyPaymentFields(selectedOrder);
+    if (paymentFormDirty.current || !selectedOrder) {
+      return;
     }
-  }, [selectedId, pharmacy]);
+
+    applyPaymentFields(selectedOrder);
+  }, [pharmacy?.paymentLinkUrl, pharmacy?.paymentQrImageUrl]);
 
   const handleStatusChange = async (status: OrderStatus) => {
     if (!pharmacyId || !selectedOrder || statusUpdateInFlight.current) return;
@@ -156,6 +160,7 @@ export function OrdersPage() {
       setSelectedOrder(updated);
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
       setRejectionReason('');
+      paymentFormDirty.current = false;
       applyPaymentFields(updated);
 
       if (status === 'payment_pending') {
@@ -216,6 +221,7 @@ export function OrdersPage() {
       });
       setSelectedOrder(updated);
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
+      paymentFormDirty.current = false;
       applyPaymentFields(updated);
       toast.success(
         sendMode === 'qr'
@@ -336,7 +342,10 @@ export function OrdersPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => applyPaymentFields(selectedOrder)}
+                      onClick={() => {
+                        paymentFormDirty.current = false;
+                        applyPaymentFields(selectedOrder);
+                      }}
                       className="shrink-0 rounded-lg border border-amber-500/30 px-2.5 py-1 text-xs text-amber-100 hover:bg-amber-500/20"
                     >
                       Reload from Settings
@@ -353,7 +362,10 @@ export function OrdersPage() {
                     <label className="text-xs text-amber-100/80">Payment amount (₹)</label>
                     <input
                       value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      onChange={(e) => {
+                        paymentFormDirty.current = true;
+                        setPaymentAmount(e.target.value);
+                      }}
                       placeholder="e.g. 320"
                       type="number"
                       min="0"
@@ -363,7 +375,10 @@ export function OrdersPage() {
                     <label className="text-xs text-amber-100/80">Payment link</label>
                     <input
                       value={paymentLinkUrl}
-                      onChange={(e) => setPaymentLinkUrl(e.target.value)}
+                      onChange={(e) => {
+                        paymentFormDirty.current = true;
+                        setPaymentLinkUrl(e.target.value);
+                      }}
                       placeholder={
                         pharmacy?.paymentLinkUrl
                           ? 'From Settings'
@@ -375,7 +390,10 @@ export function OrdersPage() {
                     <label className="text-xs text-amber-100/80">QR code image</label>
                     <input
                       value={paymentQrImageUrl}
-                      onChange={(e) => setPaymentQrImageUrl(e.target.value)}
+                      onChange={(e) => {
+                        paymentFormDirty.current = true;
+                        setPaymentQrImageUrl(e.target.value);
+                      }}
                       placeholder={
                         pharmacy?.paymentQrImageUrl ? 'From Settings' : 'Upload QR in Settings'
                       }

@@ -50,13 +50,22 @@ export class OrderStatusService {
     }
   }
 
+  private toDate(value: Date | string | undefined): Date | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    return value instanceof Date ? value : new Date(value);
+  }
+
   private buildNotificationContext(
     order: IOrder,
     pharmacy: IPharmacy,
     patient: IPatient,
     input?: UpdateOrderStatusInput,
   ): OrderNotificationContext {
-    const refillDueAt = input?.refillDueAt ?? order.refillDueAt;
+    const refillDueAt =
+      this.toDate(input?.refillDueAt) ?? this.toDate(order.refillDueAt as Date | string | undefined);
     const daysRemaining = refillDueAt
       ? Math.max(
           0,
@@ -83,23 +92,23 @@ export class OrderStatusService {
     status: OrderStatus,
     input?: UpdateOrderStatusInput,
   ): Promise<void> {
-    const pharmacy = await Pharmacy.findById(order.pharmacyId);
-
-    if (!pharmacy) {
-      return;
-    }
-
-    const patient = await Patient.findById(order.patientId);
-
-    if (!patient) {
-      return;
-    }
-
-    const context = this.buildNotificationContext(order, pharmacy, patient, input);
-    const messageText = getOrderStatusMessage(status, context);
-    const templateName = getMetaTemplateName(status);
-
     try {
+      const pharmacy = await Pharmacy.findById(order.pharmacyId);
+
+      if (!pharmacy) {
+        return;
+      }
+
+      const patient = await Patient.findById(order.patientId);
+
+      if (!patient) {
+        return;
+      }
+
+      const context = this.buildNotificationContext(order, pharmacy, patient, input);
+      const messageText = getOrderStatusMessage(status, context);
+      const templateName = getMetaTemplateName(status);
+
       let sendResult;
 
       if (env.USE_META_TEMPLATES && templateName) {
@@ -206,7 +215,11 @@ export class OrderStatusService {
     }
 
     if (input.refillDueAt) {
-      order.refillDueAt = input.refillDueAt;
+      order.refillDueAt = this.toDate(input.refillDueAt) ?? order.refillDueAt;
+    }
+
+    if (input.status === OrderStatus.ORDER_COMPLETED && !order.refillDueAt) {
+      order.refillDueAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
 
     if (input.status === OrderStatus.PAYMENT_PENDING) {

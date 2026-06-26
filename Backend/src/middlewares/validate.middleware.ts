@@ -6,6 +6,6 @@ type RequestPart = 'body' | 'query' | 'params';
 export const validate =
   (schema: ZodSchema, part: RequestPart = 'body') =>
   (req: Request, _res: Response, next: NextFunction): void => {
-    schema.parse(req[part]);
+    req[part] = schema.parse(req[part]);
     next();
   };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Loader2, Package } from 'lucide-react';
+import { Loader2, Package, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrderPaymentDetails, updateOrderStatus } from '../api/orders';
 import { ApiClientError } from '../api/client';
@@ -8,7 +8,31 @@ import { usePharmacy } from '../context/PharmacyContext';
 import { usePolling } from '../hooks/usePolling';
 import { MediaAttachment } from '../components/chat/MediaAttachment';
 import { isResolvableMediaPath, resolveMediaUrl } from '../utils/media';
+import { formatRelative } from '../utils/format';
 import type { Order, OrderStatus, Pharmacy, PopulatedPatient } from '../types';
+
+const ATTENTION_STATUSES = new Set<OrderStatus>(['prescription_received', 'order_verified']);
+
+function formatOrderRef(orderId: string): string {
+  return `#${orderId.slice(-6).toUpperCase()}`;
+}
+
+function isNewOrder(order: Order): boolean {
+  return order.status === 'prescription_received';
+}
+
+function needsPharmacistAction(order: Order): boolean {
+  return ATTENTION_STATUSES.has(order.status);
+}
+
+function isRecentlyCreated(order: Order, withinHours = 6): boolean {
+  if (!order.createdAt) {
+    return false;
+  }
+
+  const ageMs = Date.now() - new Date(order.createdAt).getTime();
+  return ageMs >= 0 && ageMs <= withinHours * 60 * 60 * 1000;
+}
 
 const ORDERS_POLL_MS = 5_000;
 
@@ -248,11 +272,20 @@ export function OrdersPage() {
       ? resolveMediaUrl(paymentQrImageUrl)
       : null;
 
+  const pendingReviewCount = orders.filter((order) => needsPharmacistAction(order)).length;
+
   return (
     <div className="flex h-full bg-zinc-950">
       <section className="flex w-96 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900/50">
         <div className="border-b border-zinc-800 px-4 py-4">
-          <h1 className="text-lg font-semibold text-white">Orders</h1>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-lg font-semibold text-white">Orders</h1>
+            {pendingReviewCount > 0 ? (
+              <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">
+                {pendingReviewCount} need review
+              </span>
+            ) : null}
+          </div>
           <p className="text-xs text-zinc-500">Prescription to delivery lifecycle</p>
         </div>
 
@@ -266,22 +299,53 @@ export function OrdersPage() {
               No orders yet. Patients can upload prescriptions on WhatsApp.
             </p>
           ) : (
-            orders.map((order) => (
+            orders.map((order) => {
+              const isNew = isNewOrder(order);
+              const isRecent = isRecentlyCreated(order);
+              const needsAction = needsPharmacistAction(order);
+              const isSelected = selectedId === order._id;
+
+              return (
               <button
                 key={order._id}
                 type="button"
                 onClick={() => setSelectedId(order._id)}
-                className={`w-full border-b border-zinc-800 px-4 py-4 text-left transition hover:bg-zinc-800/50 ${
-                  selectedId === order._id ? 'bg-violet-500/10' : ''
-                }`}
+                className={`relative w-full border-b border-zinc-800 px-4 py-4 text-left transition hover:bg-zinc-800/50 ${
+                  isSelected ? 'bg-violet-500/10' : ''
+                } ${isNew ? 'border-l-4 border-l-emerald-500 bg-emerald-500/5' : needsAction ? 'border-l-4 border-l-amber-500/80' : ''}`}
               >
-                <p className="font-medium text-white">{getPatientName(order.patientId)}</p>
-                <p className="mt-1 text-xs text-zinc-500">{getPatientMobile(order.patientId)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-white">{getPatientName(order.patientId)}</p>
+                  {isNew ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                      <Sparkles size={10} />
+                      New
+                    </span>
+                  ) : isRecent && needsAction ? (
+                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      Review
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 font-mono text-xs font-semibold text-violet-300">
+                  {formatOrderRef(order._id)}
+                </p>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  {order.createdAt ? formatRelative(order.createdAt) : '—'}
+                  {order.createdAt
+                    ? ` · ${new Date(order.createdAt).toLocaleTimeString('en-IN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}`
+                    : ''}
+                </p>
+                <p className="mt-1 text-xs text-zinc-600">{getPatientMobile(order.patientId)}</p>
                 <span className="mt-2 inline-block rounded-full bg-zinc-800 px-2.5 py-0.5 text-[11px] font-medium text-violet-300">
                   {formatStatus(order.status)}
                 </span>
               </button>
-            ))
+            );
+            })
           )}
         </div>
       </section>
@@ -301,6 +365,12 @@ export function OrdersPage() {
               <p className="mt-1 text-sm text-zinc-400">
                 {getPatientName(selectedOrder.patientId)} · {getPatientMobile(selectedOrder.patientId)}
               </p>
+              {selectedOrder.createdAt ? (
+                <p className="mt-1 text-xs text-zinc-500">
+                  Received {formatRelative(selectedOrder.createdAt)} (
+                  {new Date(selectedOrder.createdAt).toLocaleString('en-IN')})
+                </p>
+              ) : null}
               {selectedOrder.conversationId ? (
                 <Link
                   to="/dashboard/inbox"

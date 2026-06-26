@@ -14,6 +14,8 @@ import { Types } from 'mongoose';
 export interface SendPaymentDetailsInput {
   paymentLinkUrl?: string;
   paymentQrImageUrl?: string;
+  sendMode?: 'link' | 'qr' | 'both';
+  paymentAmount?: number;
 }
 
 export interface CreateOrderFromPrescriptionInput {
@@ -176,8 +178,14 @@ export class OrderService {
   ): Promise<IOrder> {
     const order = await this.getOrderById(pharmacyId, orderId);
 
-    if (order.status !== OrderStatus.PAYMENT_PENDING) {
-      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Order is not awaiting payment');
+    if (
+      order.status !== OrderStatus.PAYMENT_PENDING &&
+      order.status !== OrderStatus.ORDER_ACCEPTED
+    ) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        'Payment can only be sent for accepted or payment-pending orders',
+      );
     }
 
     const pharmacy = await Pharmacy.findById(pharmacyId);
@@ -185,6 +193,11 @@ export class OrderService {
 
     if (!pharmacy || !patient) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Pharmacy or patient not found');
+    }
+
+    if (input?.paymentAmount !== undefined) {
+      order.paymentAmount = input.paymentAmount;
+      await order.save();
     }
 
     const paymentLink = paymentNotificationService.resolvePaymentLink(order, pharmacy, input);

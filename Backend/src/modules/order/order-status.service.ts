@@ -211,8 +211,8 @@ export class OrderStatusService {
 
       if (pharmacy && patient) {
         await paymentNotificationService.sendPaymentDetails(order, pharmacy, patient, {
-          paymentLinkUrl: input.paymentLinkUrl,
-          paymentQrImageUrl: input.paymentQrImageUrl,
+          paymentLinkUrl: input.paymentLinkUrl || pharmacy.paymentLinkUrl,
+          paymentQrImageUrl: input.paymentQrImageUrl || pharmacy.paymentQrImageUrl,
         });
       }
     }

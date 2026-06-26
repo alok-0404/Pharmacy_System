@@ -6,8 +6,16 @@ import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrder
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import { MediaAttachment } from '../components/chat/MediaAttachment';
-import { isResolvableMediaPath } from '../utils/media';
-import type { Order, OrderStatus, PopulatedPatient } from '../types';
+import { isResolvableMediaPath, resolveMediaUrl } from '../utils/media';
+import type { Order, OrderStatus, Pharmacy, PopulatedPatient } from '../types';
+
+function resolvePaymentDefaults(order: Order | null, pharmacy: Pharmacy | null) {
+  return {
+    amount: order?.paymentAmount?.toString() ?? '',
+    link: order?.paymentLinkUrl || pharmacy?.paymentLinkUrl || '',
+    qr: order?.paymentQrImageUrl || pharmacy?.paymentQrImageUrl || '',
+  };
+}
 
 function getPatientName(patient: PopulatedPatient | string): string {
   return typeof patient === 'object' ? patient.name : 'Patient';
@@ -67,17 +75,22 @@ export function OrdersPage() {
       });
   }, [pharmacyId, selectedId]);
 
-  const applyPaymentFields = (order: Order) => {
-    setPaymentAmount(order.paymentAmount?.toString() ?? '');
-    setPaymentLinkUrl(order.paymentLinkUrl ?? pharmacy?.paymentLinkUrl ?? '');
-    setPaymentQrImageUrl(order.paymentQrImageUrl ?? pharmacy?.paymentQrImageUrl ?? '');
+  const applyPaymentFields = (order: Order | null) => {
+    const defaults = resolvePaymentDefaults(order, pharmacy);
+    setPaymentAmount(defaults.amount);
+    setPaymentLinkUrl(defaults.link);
+    setPaymentQrImageUrl(defaults.qr);
   };
 
   useEffect(() => {
-    if (selectedOrder) {
+    applyPaymentFields(selectedOrder);
+  }, [selectedOrder, pharmacy?.paymentLinkUrl, pharmacy?.paymentQrImageUrl]);
+
+  useEffect(() => {
+    if (selectedId && pharmacy) {
       applyPaymentFields(selectedOrder);
     }
-  }, [selectedOrder, pharmacy?.paymentLinkUrl, pharmacy?.paymentQrImageUrl]);
+  }, [selectedId, pharmacy]);
 
   const handleStatusChange = async (status: OrderStatus) => {
     if (!pharmacyId || !selectedOrder) return;
@@ -86,14 +99,16 @@ export function OrdersPage() {
     setError(null);
 
     try {
+      const resolvedLink = paymentLinkUrl.trim() || pharmacy?.paymentLinkUrl || undefined;
+      const resolvedQr = paymentQrImageUrl.trim() || pharmacy?.paymentQrImageUrl || undefined;
+
       const updated = await updateOrderStatus(pharmacyId, selectedOrder._id, {
         status,
         rejectionReason: status === 'prescription_rejected' ? rejectionReason : undefined,
         paymentAmount:
           status === 'payment_pending' && paymentAmount ? Number(paymentAmount) : undefined,
-        paymentLinkUrl: status === 'payment_pending' ? paymentLinkUrl.trim() || undefined : undefined,
-        paymentQrImageUrl:
-          status === 'payment_pending' ? paymentQrImageUrl.trim() || undefined : undefined,
+        paymentLinkUrl: status === 'payment_pending' ? resolvedLink : undefined,
+        paymentQrImageUrl: status === 'payment_pending' ? resolvedQr : undefined,
         refillDueAt:
           status === 'order_completed'
             ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -115,21 +130,47 @@ export function OrdersPage() {
     }
   };
 
-  const handleSendPayment = async () => {
+  const handleSendPayment = async (sendMode: 'link' | 'qr' | 'both' = 'both') => {
     if (!pharmacyId || !selectedOrder) return;
+
+    const resolvedLink = paymentLinkUrl.trim() || pharmacy?.paymentLinkUrl || undefined;
+    const resolvedQr = paymentQrImageUrl.trim() || pharmacy?.paymentQrImageUrl || undefined;
+
+    if (sendMode === 'link' && !resolvedLink) {
+      toast.error('Payment link missing — add it in Settings or enter above');
+      return;
+    }
+
+    if (sendMode === 'qr' && !resolvedQr) {
+      toast.error('QR image missing — upload it in Settings or enter above');
+      return;
+    }
+
+    if (sendMode === 'both' && !resolvedLink && !resolvedQr) {
+      toast.error('Add payment link or QR in Settings first');
+      return;
+    }
 
     setSendingPayment(true);
     setError(null);
 
     try {
       const updated = await sendOrderPaymentDetails(pharmacyId, selectedOrder._id, {
-        paymentLinkUrl: paymentLinkUrl.trim() || undefined,
-        paymentQrImageUrl: paymentQrImageUrl.trim() || undefined,
+        paymentLinkUrl: resolvedLink,
+        paymentQrImageUrl: resolvedQr,
+        sendMode,
+        paymentAmount: paymentAmount ? Number(paymentAmount) : undefined,
       });
       setSelectedOrder(updated);
       setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)));
       applyPaymentFields(updated);
-      toast.success('Payment details sent to patient on WhatsApp');
+      toast.success(
+        sendMode === 'qr'
+          ? 'QR code sent to patient on WhatsApp'
+          : sendMode === 'link'
+            ? 'Payment link sent to patient on WhatsApp'
+            : 'Payment link & QR sent to patient on WhatsApp',
+      );
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to send payment details');
     } finally {
@@ -138,6 +179,15 @@ export function OrdersPage() {
   };
 
   const nextActions = selectedOrder ? ORDER_NEXT_ACTIONS[selectedOrder.status] ?? [] : [];
+
+  const showPaymentFields =
+    selectedOrder &&
+    (selectedOrder.status === 'payment_pending' || nextActions.includes('payment_pending'));
+
+  const paymentQrPreview =
+    paymentQrImageUrl && isResolvableMediaPath(paymentQrImageUrl)
+      ? resolveMediaUrl(paymentQrImageUrl)
+      : null;
 
   return (
     <div className="flex h-full bg-zinc-950">
@@ -222,54 +272,111 @@ export function OrdersPage() {
                 </div>
               ) : null}
 
-              {selectedOrder.status === 'payment_pending' ? (
+              {showPaymentFields ? (
                 <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
-                  <p className="text-sm font-medium text-amber-200">Payment details</p>
-                  <p className="mt-1 text-xs text-amber-100/70">
-                    Prefilled from Settings — edit below and click send to resend to patient.
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-amber-200">Payment details</p>
+                      <p className="mt-1 text-xs text-amber-100/70">
+                        Auto-filled from Settings — edit if needed, then send to patient on WhatsApp.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyPaymentFields(selectedOrder)}
+                      className="shrink-0 rounded-lg border border-amber-500/30 px-2.5 py-1 text-xs text-amber-100 hover:bg-amber-500/20"
+                    >
+                      Reload from Settings
+                    </button>
+                  </div>
+
                   {selectedOrder.paymentDetailsSentAt ? (
-                    <p className="mt-1 text-xs text-amber-100/70">
+                    <p className="mt-2 text-xs text-amber-100/70">
                       Last sent: {new Date(selectedOrder.paymentDetailsSentAt).toLocaleString()}
                     </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-amber-100/70">Not sent yet</p>
-                  )}
-                  {selectedOrder.paymentAmount ? (
-                    <p className="mt-2 text-sm text-amber-100">Amount: ₹{selectedOrder.paymentAmount}</p>
                   ) : null}
 
                   <div className="mt-3 space-y-2">
+                    <label className="text-xs text-amber-100/80">Payment amount (₹)</label>
+                    <input
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      placeholder="e.g. 320"
+                      type="number"
+                      min="0"
+                      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
+                    />
+
+                    <label className="text-xs text-amber-100/80">Payment link</label>
                     <input
                       value={paymentLinkUrl}
                       onChange={(e) => setPaymentLinkUrl(e.target.value)}
-                      placeholder={pharmacy?.paymentLinkUrl || 'Payment link'}
+                      placeholder={
+                        pharmacy?.paymentLinkUrl
+                          ? 'From Settings'
+                          : 'Add payment link in Settings'
+                      }
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                     />
+
+                    <label className="text-xs text-amber-100/80">QR code image</label>
                     <input
                       value={paymentQrImageUrl}
                       onChange={(e) => setPaymentQrImageUrl(e.target.value)}
-                      placeholder={pharmacy?.paymentQrImageUrl || 'QR image URL'}
+                      placeholder={
+                        pharmacy?.paymentQrImageUrl ? 'From Settings' : 'Upload QR in Settings'
+                      }
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                     />
+
+                    {paymentQrPreview ? (
+                      <img
+                        src={paymentQrPreview}
+                        alt="Payment QR preview"
+                        className="mt-1 max-h-36 rounded-lg border border-zinc-700 bg-white p-2"
+                      />
+                    ) : null}
+
                     <Link
                       to="/dashboard/settings"
                       className="inline-block text-xs text-violet-400 hover:text-violet-300"
                     >
-                      Change default payment link / QR in Settings →
+                      Change defaults in Settings →
                     </Link>
-                    <button
-                      type="button"
-                      disabled={sendingPayment}
-                      onClick={() => void handleSendPayment()}
-                      className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
-                    >
-                      {sendingPayment ? (
-                        <Loader2 className="animate-spin" size={16} />
-                      ) : (
-                        'Send Payment Link & QR'
-                      )}
-                    </button>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={sendingPayment}
+                        onClick={() => void handleSendPayment('qr')}
+                        className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+                      >
+                        Send QR to WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        disabled={sendingPayment}
+                        onClick={() => void handleSendPayment('link')}
+                        className="rounded-xl border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+                      >
+                        Send Link
+                      </button>
+                      <button
+                        type="button"
+                        disabled={sendingPayment}
+                        onClick={() => void handleSendPayment('both')}
+                        className="rounded-xl border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+                      >
+                        Send Link & QR
+                      </button>
+                    </div>
+
+                    {nextActions.includes('payment_pending') ? (
+                      <p className="text-xs text-zinc-400">
+                        Or click <strong className="text-zinc-300">Payment Pending</strong> below to
+                        change status and auto-send link & QR.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -301,34 +408,6 @@ export function OrdersPage() {
                       placeholder="Rejection reason (if rejecting)"
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
                     />
-                  ) : null}
-
-                  {nextActions.includes('payment_pending') ? (
-                    <>
-                      <input
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        placeholder="Payment amount (₹)"
-                        type="number"
-                        min="0"
-                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
-                      />
-                      <input
-                        value={paymentLinkUrl}
-                        onChange={(e) => setPaymentLinkUrl(e.target.value)}
-                        placeholder={pharmacy?.paymentLinkUrl || 'Payment link (from Settings)'}
-                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
-                      />
-                      <input
-                        value={paymentQrImageUrl}
-                        onChange={(e) => setPaymentQrImageUrl(e.target.value)}
-                        placeholder={pharmacy?.paymentQrImageUrl || 'QR image (from Settings)'}
-                        className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
-                      />
-                      <p className="text-xs text-zinc-500">
-                        Moving to Payment Pending will auto-send link & QR to patient on WhatsApp.
-                      </p>
-                    </>
                   ) : null}
 
                   <div className="flex flex-wrap gap-2">

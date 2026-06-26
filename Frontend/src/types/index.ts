@@ -221,4 +221,6 @@ export interface CreateFaqInput {
 export interface SendPaymentDetailsInput {
   paymentLinkUrl?: string;
   paymentQrImageUrl?: string;
+  sendMode?: 'link' | 'qr' | 'both';
+  paymentAmount?: number;
 }

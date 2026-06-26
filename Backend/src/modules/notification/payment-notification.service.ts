@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger';
 export interface PaymentDetailsInput {
   paymentLinkUrl?: string;
   paymentQrImageUrl?: string;
+  sendMode?: 'link' | 'qr' | 'both';
 }
 
 function orderShortId(orderId: string): string {
@@ -91,8 +92,12 @@ export class PaymentNotificationService {
       return order;
     }
 
+    const sendMode = input?.sendMode ?? 'both';
+    const shouldSendLink = sendMode === 'link' || sendMode === 'both';
+    const shouldSendQr = sendMode === 'qr' || sendMode === 'both';
+
     try {
-      if (paymentLink) {
+      if (shouldSendLink && paymentLink) {
         const linkMessage = `Payment link for order #${shortId}${
           amount ? ` (₹${amount})` : ''
         }:\n${resolvePublicUrl(paymentLink)}\n\nComplete payment and we will confirm your order. — ${pharmacy.name}`;
@@ -111,12 +116,12 @@ export class PaymentNotificationService {
         );
       }
 
-      if (!qrImageUrl && paymentLink) {
+      if (!qrImageUrl && paymentLink && shouldSendQr) {
         qrImageUrl = await generateQrFromLink(paymentLink, pharmacyId);
         order.paymentQrImageUrl = qrImageUrl;
       }
 
-      if (qrImageUrl) {
+      if (shouldSendQr && qrImageUrl) {
         const caption = `Scan this QR code to pay${
           amount ? ` ₹${amount}` : ''
         } for order #${shortId}. — ${pharmacy.name}`;

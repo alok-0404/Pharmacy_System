@@ -25,6 +25,8 @@ export const sendPaymentDetailsSchema = z.object({
     .or(z.string().startsWith('/'))
     .or(z.literal(''))
     .optional(),
+  sendMode: z.enum(['link', 'qr', 'both']).optional(),
+  paymentAmount: z.coerce.number().min(0).optional(),
 });
 
 export const getOrdersQuerySchema = z.object({

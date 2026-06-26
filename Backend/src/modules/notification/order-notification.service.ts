@@ -5,6 +5,23 @@ export interface OrderNotificationContext {
   orderId: string;
   rejectionReason?: string;
   paymentAmount?: number;
+  storeAddress?: string;
+  storeHours?: string;
+  patientName?: string;
+  paymentMode?: string;
+  paymentDate?: string;
+  lastOrderDate?: string;
+  daysRemaining?: number;
+  medicineName?: string;
+}
+
+/** Format a date as e.g. "25 Jun 2026" for use in WhatsApp template variables. */
+export function formatDate(date: Date): string {
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 /** WhatsApp message text for each order status transition. */

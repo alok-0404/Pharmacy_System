@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Loader2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrderPaymentDetails, updateOrderStatus } from '../api/orders';
@@ -34,6 +34,8 @@ function formatStatus(status: OrderStatus): string {
 
 export function OrdersPage() {
   const { pharmacyId, pharmacy } = usePharmacy();
+  const [searchParams] = useSearchParams();
+  const deepLinkOrderId = searchParams.get('order');
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -90,6 +92,12 @@ export function OrdersPage() {
   useEffect(() => {
     void loadOrders();
   }, [loadOrders]);
+
+  useEffect(() => {
+    if (deepLinkOrderId) {
+      setSelectedId(deepLinkOrderId);
+    }
+  }, [deepLinkOrderId]);
 
   usePolling(() => loadOrders({ silent: true }), ORDERS_POLL_MS, Boolean(pharmacyId));
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { getConversations } from '../api/conversations';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import { usePolling } from '../hooks/usePolling';
+import { SkeletonChatPanel, SkeletonConversationList } from '../components/ui/skeleton';
 import type { Conversation } from '../types';
 import { ConversationList } from '../components/conversations/ConversationList';
 import { ChatView } from '../components/chat/ChatView';
@@ -73,8 +74,8 @@ export function InboxPage() {
         </div>
 
         {loading ? (
-          <div className="flex flex-1 items-center justify-center text-zinc-500">
-            <Loader2 className="animate-spin" size={24} />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SkeletonConversationList />
           </div>
         ) : error ? (
           <div className="p-4 text-sm text-red-600">{error}</div>
@@ -90,7 +91,9 @@ export function InboxPage() {
       </section>
 
       <section className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-        {selected && pharmacyId ? (
+        {loading ? (
+          <SkeletonChatPanel />
+        ) : selected && pharmacyId ? (
           <ChatView pharmacyId={pharmacyId} conversation={selected} />
         ) : (
           <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-500">

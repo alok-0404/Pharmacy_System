@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { createMedicine, deleteMedicine, getMedicines } from '../api/medicines';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
+import { SkeletonMedicineList } from '../components/ui/skeleton';
 import { GlassCard } from '../components/ui/glass-card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -155,9 +156,7 @@ export function MedicinesPage() {
 
         <div className="mt-4 space-y-2">
           {loading ? (
-            <div className="flex justify-center py-8 text-zinc-500">
-              <Loader2 className="animate-spin" size={24} />
-            </div>
+            <SkeletonMedicineList />
           ) : medicines.length === 0 ? (
             <p className="py-8 text-center text-sm text-zinc-500">
               No medicines yet. Add items patients can ask about on WhatsApp.

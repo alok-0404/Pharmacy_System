@@ -6,7 +6,6 @@ import {
   Bot,
   CheckCircle2,
   IndianRupee,
-  Loader2,
   MessageSquare,
   Package,
   Pill,
@@ -16,6 +15,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
+import { SkeletonDashboardOverview } from '../components/ui/skeleton';
 import { usePharmacy } from '../context/PharmacyContext';
 import { getDashboardAnalytics } from '../api/dashboard';
 import { ApiClientError } from '../api/client';
@@ -87,8 +87,8 @@ export function DashboardHomePage() {
 
   if (loading && !data) {
     return (
-      <div className="flex h-full items-center justify-center bg-zinc-950 text-zinc-400">
-        <Loader2 className="animate-spin" size={28} />
+      <div className="h-full overflow-y-auto bg-zinc-950">
+        <SkeletonDashboardOverview />
       </div>
     );
   }
@@ -207,7 +207,12 @@ export function DashboardHomePage() {
           ))}
         </div>
 
-        <RevenueSection data={data} range={range} onRangeChange={setRange} />
+        <RevenueSection
+          data={data}
+          range={range}
+          onRangeChange={setRange}
+          loading={loading}
+        />
 
         <div className="grid gap-6 xl:grid-cols-3">
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 xl:col-span-2">

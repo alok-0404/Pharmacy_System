@@ -6,6 +6,7 @@ import { getOrders, getOrder, ORDER_NEXT_ACTIONS, ORDER_STATUS_LABELS, sendOrder
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import { usePolling } from '../hooks/usePolling';
+import { SkeletonOrderDetail, SkeletonOrderList } from '../components/ui/skeleton';
 import { MediaAttachment } from '../components/chat/MediaAttachment';
 import { isResolvableMediaPath, resolveMediaUrl } from '../utils/media';
 import { formatRelative } from '../utils/format';
@@ -291,9 +292,7 @@ export function OrdersPage() {
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex justify-center py-12 text-zinc-500">
-              <Loader2 className="animate-spin" size={24} />
-            </div>
+            <SkeletonOrderList />
           ) : orders.length === 0 ? (
             <p className="px-4 py-8 text-sm text-zinc-500">
               No orders yet. Patients can upload prescriptions on WhatsApp.
@@ -351,7 +350,9 @@ export function OrdersPage() {
       </section>
 
       <section className="min-w-0 flex-1 overflow-y-auto p-6 lg:p-8">
-        {!selectedOrder ? (
+        {selectedId && !selectedOrder ? (
+          <SkeletonOrderDetail />
+        ) : !selectedOrder ? (
           <div className="flex h-full flex-col items-center justify-center text-zinc-500">
             <Package size={40} className="mb-3 opacity-40" />
             <p>Select an order to manage its status</p>

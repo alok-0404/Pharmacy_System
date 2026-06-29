@@ -10,6 +10,7 @@ import type { Conversation, Message } from '../../types';
 import { formatTime, getPatientFromConversation } from '../../utils/format';
 import { MessageBubble } from './MessageBubble';
 import { SimulatePatientDialog } from './SimulatePatientDialog';
+import { Skeleton } from '../ui/skeleton';
 
 const MESSAGES_POLL_MS = 3_000;
 
@@ -153,8 +154,19 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
 
       <div ref={messagesContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
-          <div className="flex h-full items-center justify-center text-slate-500">
-            <Loader2 className="animate-spin" size={24} />
+          <div className="space-y-3">
+            <div className="flex justify-start">
+              <Skeleton className="h-14 w-[58%] rounded-2xl rounded-tl-sm bg-white/70" />
+            </div>
+            <div className="flex justify-end">
+              <Skeleton className="h-10 w-[45%] rounded-2xl rounded-tr-sm bg-violet-200/60" />
+            </div>
+            <div className="flex justify-start">
+              <Skeleton className="h-20 w-[65%] rounded-2xl rounded-tl-sm bg-white/70" />
+            </div>
+            <div className="flex justify-end">
+              <Skeleton className="h-12 w-[50%] rounded-2xl rounded-tr-sm bg-violet-200/60" />
+            </div>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">

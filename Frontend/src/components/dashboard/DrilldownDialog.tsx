@@ -10,6 +10,7 @@ import {
 } from '../ui/dialog';
 import { ORDER_STATUS_LABELS } from '../../api/orders';
 import { exportRowsToCsv } from '../../utils/exportCsv';
+import { SkeletonTable } from '../ui/skeleton';
 import type { DashboardAnalytics } from '../../types/dashboard';
 
 export type DrilldownType = 'orders' | 'patients' | 'prescriptions' | 'deliveries' | null;
@@ -180,7 +181,13 @@ export function DrilldownDialog({ type, data, pharmacyName, onClose }: Drilldown
         </div>
 
         <div className="max-h-[55vh] overflow-y-auto rounded-xl border border-zinc-800">
-          {type === 'orders' ? (
+          {!data ? (
+            <div className="p-4">
+              <SkeletonTable rows={6} cols={5} />
+            </div>
+          ) : null}
+
+          {data && type === 'orders' ? (
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
                 <tr>
@@ -209,7 +216,7 @@ export function DrilldownDialog({ type, data, pharmacyName, onClose }: Drilldown
             </table>
           ) : null}
 
-          {type === 'patients' ? (
+          {data && type === 'patients' ? (
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
                 <tr>
@@ -242,7 +249,7 @@ export function DrilldownDialog({ type, data, pharmacyName, onClose }: Drilldown
             </table>
           ) : null}
 
-          {type === 'prescriptions' ? (
+          {data && type === 'prescriptions' ? (
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
                 <tr>
@@ -278,7 +285,7 @@ export function DrilldownDialog({ type, data, pharmacyName, onClose }: Drilldown
             </table>
           ) : null}
 
-          {type === 'deliveries' ? (
+          {data && type === 'deliveries' ? (
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
                 <tr>

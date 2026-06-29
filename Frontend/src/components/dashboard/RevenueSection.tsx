@@ -16,6 +16,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { DashboardAnalytics, DashboardRange } from '../../types/dashboard';
+import { SkeletonRevenueSection } from '../ui/skeleton';
 
 const PIE_COLORS = ['#8b5cf6', '#22c55e', '#f59e0b', '#38bdf8'];
 
@@ -23,6 +24,7 @@ interface RevenueSectionProps {
   data: DashboardAnalytics;
   range: DashboardRange;
   onRangeChange: (range: DashboardRange) => void;
+  loading?: boolean;
 }
 
 function formatCurrency(value: number): string {
@@ -31,8 +33,12 @@ function formatCurrency(value: number): string {
   return `₹${value}`;
 }
 
-export function RevenueSection({ data, range, onRangeChange }: RevenueSectionProps) {
+export function RevenueSection({ data, range, onRangeChange, loading }: RevenueSectionProps) {
   const { revenue, comparisons } = data;
+
+  if (loading) {
+    return <SkeletonRevenueSection />;
+  }
 
   const periodCards = [
     { label: 'Today', value: revenue.daily, compare: comparisons.todayVsYesterday.revenue },

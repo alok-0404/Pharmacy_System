@@ -5,6 +5,7 @@ import { createConversation } from '../api/conversations';
 import { createPatient, getPatients } from '../api/patients';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
+import { SkeletonPatientList } from '../components/ui/skeleton';
 import type { Patient } from '../types';
 
 export function PatientsPage() {
@@ -131,9 +132,7 @@ export function PatientsPage() {
             <h2 className="mb-4 font-semibold text-slate-900">Patient list</h2>
 
             {loading ? (
-              <div className="flex justify-center py-8 text-slate-400">
-                <Loader2 className="animate-spin" size={24} />
-              </div>
+              <SkeletonPatientList />
             ) : patients.length === 0 ? (
               <p className="text-sm text-slate-500">No patients yet.</p>
             ) : (

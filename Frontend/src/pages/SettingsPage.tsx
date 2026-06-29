@@ -6,6 +6,7 @@ import { createFaq, deleteFaq, getFaqs } from '../api/faq';
 import { ApiClientError } from '../api/client';
 import { usePharmacy } from '../context/PharmacyContext';
 import { GlassCard } from '../components/ui/glass-card';
+import { SkeletonFaqList } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -329,9 +330,7 @@ export function SettingsPage() {
 
             <div className="mt-4 space-y-2">
               {loadingFaqs ? (
-                <div className="flex justify-center py-4 text-zinc-500">
-                  <Loader2 className="animate-spin" size={20} />
-                </div>
+                <SkeletonFaqList />
               ) : faqs.length === 0 ? (
                 <p className="text-sm text-zinc-500">No FAQs yet. Add common patient questions above.</p>
               ) : (

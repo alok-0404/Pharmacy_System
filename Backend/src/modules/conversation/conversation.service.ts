@@ -1,9 +1,14 @@
 import { Conversation, IConversation, ConversationStatus } from './conversation.model';
 import { Patient } from '../patient/patient.model';
+import { Pharmacy } from '../pharmacy/pharmacy.model';
 import { ApiError } from '../../utils/ApiError';
 import { HTTP_STATUS } from '../../config/constants';
 import { isValidObjectId } from '../../utils/objectId';
 import { handleMongooseError } from '../../utils/mongooseError';
+import {
+  paymentNotificationService,
+  PaymentDetailsInput,
+} from '../notification/payment-notification.service';
 
 export interface CreateConversationInput {
   patientId: string;
@@ -64,6 +69,55 @@ export class ConversationService {
     }
 
     await Conversation.findByIdAndUpdate(conversationId, { handoffActive: active });
+  }
+
+  async getConversationById(pharmacyId: string, conversationId: string): Promise<IConversation> {
+    if (!isValidObjectId(pharmacyId) || !isValidObjectId(conversationId)) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid pharmacy or conversation ID');
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      pharmacyId,
+    });
+
+    if (!conversation) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Conversation not found for this pharmacy');
+    }
+
+    return conversation;
+  }
+
+  async sendPaymentDetails(
+    pharmacyId: string,
+    conversationId: string,
+    input?: PaymentDetailsInput,
+  ): Promise<void> {
+    const conversation = await this.getConversationById(pharmacyId, conversationId);
+    const pharmacy = await Pharmacy.findById(pharmacyId);
+    const patient = await Patient.findOne({ _id: conversation.patientId, pharmacyId });
+
+    if (!pharmacy || !patient) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Pharmacy or patient not found');
+    }
+
+    const paymentLink = paymentNotificationService.resolveConversationPaymentLink(pharmacy, input);
+    const paymentQr = paymentNotificationService.resolveConversationQrImageUrl(pharmacy, input);
+
+    if (!paymentLink && !paymentQr) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        'Payment link or QR code is required. Add it in Settings first.',
+      );
+    }
+
+    await paymentNotificationService.sendPaymentDetailsForConversation(
+      pharmacyId,
+      conversationId,
+      pharmacy,
+      patient,
+      input,
+    );
   }
 
   async findOrCreateOpenConversation(

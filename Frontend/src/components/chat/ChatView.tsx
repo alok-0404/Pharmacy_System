@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Send, UserRound } from 'lucide-react';
+import { IndianRupee, Loader2, Send, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { createMessage, getMessages } from '../../api/messages';
+import { sendConversationPaymentDetails } from '../../api/conversations';
 import { ApiClientError } from '../../api/client';
 import { usePharmacy } from '../../context/PharmacyContext';
 import { useChatScroll } from '../../hooks/useChatScroll';
 import { usePolling } from '../../hooks/usePolling';
-import type { Conversation, Message } from '../../types';
+import type { Conversation, Message, SendPaymentDetailsInput } from '../../types';
 import { formatTime, getPatientFromConversation } from '../../utils/format';
 import { MessageBubble } from './MessageBubble';
 import { SimulatePatientDialog } from './SimulatePatientDialog';
+import { SendPaymentDialog } from './SendPaymentDialog';
 import { Skeleton } from '../ui/skeleton';
 
 const MESSAGES_POLL_MS = 3_000;
@@ -35,6 +37,8 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [simulateOpen, setSimulateOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [sendingPayment, setSendingPayment] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { isNearBottomRef, scrollToBottom } = useChatScroll(messagesContainerRef);
@@ -133,6 +137,36 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
     }
   };
 
+  const handleSendPayment = async (data: SendPaymentDetailsInput) => {
+    setSendingPayment(true);
+    setError(null);
+
+    try {
+      await sendConversationPaymentDetails(pharmacyId, conversation._id, data);
+      await loadMessages({ silent: true });
+
+      const mode = data.sendMode ?? 'both';
+      toast.success(
+        mode === 'qr'
+          ? 'QR code sent to patient on WhatsApp'
+          : mode === 'link'
+            ? 'Payment link sent to patient on WhatsApp'
+            : 'Payment link & QR sent to patient on WhatsApp',
+      );
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError ? err.message : 'Failed to send payment details';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSendingPayment(false);
+    }
+  };
+
+  const hasPaymentDefaults = Boolean(
+    pharmacy?.paymentLinkUrl || pharmacy?.paymentQrImageUrl,
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#e5ddd5]">
       <header className="flex shrink-0 items-center gap-3 border-b border-violet-900/50 bg-violet-800 px-5 py-4 text-white shadow-sm">
@@ -207,10 +241,24 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
           <button
             type="button"
             onClick={() => setSimulateOpen(true)}
-            disabled={sending}
+            disabled={sending || sendingPayment}
             className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
           >
             Simulate patient
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentOpen(true)}
+            disabled={sending || sendingPayment}
+            title={
+              hasPaymentDefaults
+                ? 'Send payment link or QR from Settings'
+                : 'Add payment link or QR in Settings first'
+            }
+            className="flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+          >
+            <IndianRupee size={14} />
+            Payment
           </button>
           <input
             value={draft}
@@ -227,13 +275,21 @@ export function ChatView({ pharmacyId, conversation }: ChatViewProps) {
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={sending || !draft.trim()}
+            disabled={sending || sendingPayment || !draft.trim()}
             className="flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {sending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
           </button>
         </div>
       </div>
+
+      <SendPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        pharmacy={pharmacy}
+        onSend={handleSendPayment}
+        sending={sendingPayment}
+      />
 
       <SimulatePatientDialog
         open={simulateOpen}

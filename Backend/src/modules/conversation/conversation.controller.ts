@@ -28,3 +28,19 @@ export const getConversations = asyncHandler(async (req: Request, res: Response)
     ApiResponse.success('Conversations retrieved successfully', conversations),
   );
 });
+
+export const sendConversationPaymentDetails = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.tenantId) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Tenant ID is required');
+  }
+
+  await conversationService.sendPaymentDetails(
+    req.tenantId,
+    String(req.params.id),
+    req.body,
+  );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(ApiResponse.success('Payment link and QR sent successfully'));
+});

@@ -216,8 +216,9 @@ export function SettingsPage() {
           <GlassCard className="border-zinc-800 bg-zinc-900/50">
             <h2 className="font-semibold text-white">Store location & hours</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Shown when patients tap Store Location. Add latitude/longitude to send a WhatsApp map
-              pin (always from these settings — not typed manually).
+              Shown when patients tap Store Location. If you add a Google Maps link or latitude/longitude,
+              patients get an exact map link. With only an address, the bot auto-generates a Google Maps
+              search link.
             </p>
 
             <form onSubmit={handleSaveStoreSettings} className="mt-4 space-y-4">

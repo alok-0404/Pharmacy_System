@@ -22,6 +22,25 @@ export function hasStoreCoordinates(context: PharmacyContext): boolean {
   );
 }
 
+/** Best map link for patients: saved URL → coords → address search on Google Maps. */
+export function resolveStoreMapUrl(context: PharmacyContext): string | undefined {
+  const saved = context.storeMapUrl?.trim();
+  if (saved) {
+    return saved;
+  }
+
+  if (hasStoreCoordinates(context)) {
+    return `https://www.google.com/maps?q=${context.storeLatitude},${context.storeLongitude}`;
+  }
+
+  const address = context.storeAddress?.trim();
+  if (address) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  }
+
+  return undefined;
+}
+
 export function buildStoreLocationPin(context: PharmacyContext): StoreLocationPin | undefined {
   if (!hasStoreCoordinates(context)) {
     return undefined;

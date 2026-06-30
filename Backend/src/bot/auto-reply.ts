@@ -1,7 +1,7 @@
 import { Intent } from './intent-detector';
 import { getOrderStatusLabel } from '../modules/notification/order-notification.service';
 import { OrderStatus } from '../config/order.constants';
-import { hasStoreCoordinates } from './store-location';
+import { hasStoreCoordinates, resolveStoreMapUrl } from './store-location';
 
 export interface PharmacyContext {
   name: string;
@@ -39,12 +39,15 @@ function formatStoreInfo(context: PharmacyContext): string {
     lines.push(`\n🕐 Hours:\n${context.storeHours}`);
   }
 
+  const mapUrl = resolveStoreMapUrl(context);
+  if (mapUrl) {
+    lines.push(`\n🗺️ Location on map:\n${mapUrl}`);
+  }
+
   if (hasStoreCoordinates(context)) {
     lines.push(
-      `\n📍 Tap the *location pin* in the next message to open directions in Google Maps.`,
+      `\n📍 We are also sending a *location pin* — tap it in the next message for one-tap directions.`,
     );
-  } else if (context.storeMapUrl) {
-    lines.push(`\n🗺️ Map:\n${context.storeMapUrl}`);
   }
 
   if (lines.length === 1) {
